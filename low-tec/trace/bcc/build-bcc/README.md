@@ -18,7 +18,7 @@ docker run --init --log-driver none --privileged -d --name cndt-bcc-ub -h cndt-b
     -v /lib/modules:/lib/modules:rw \
     -v /var/run/docker.sock:/var/run/docker.sock:rw \
     `#bind the executeable file as the same path in container:` \
-    -v /home/labile:/home/labile:ro \
+    -v /home/labile:/home/labile:rw \
     cndt-bcc-ub:latest \
     /bin/sleep 365d
 
