@@ -15,7 +15,7 @@ export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
 
 export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
 
-cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
+cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/4267/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
 bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
  */
 
@@ -31,8 +31,8 @@ BEGIN
 }
 
 
-uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
-/pid == ENVOY_PID/ 
+uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
+/pid == 4267/ 
 { 
     // $receiver = reg("di"); // "this" pointer
     // $element_ptr = (struct mailbox_element_ptr*) reg("si");
