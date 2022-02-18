@@ -1,0 +1,36 @@
+#!/usr/local/bin/bpftrace
+
+
+/**
+bpftrace /home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace/trace-filter-match.bt $PID
+ */
+
+struct string_view {
+/*    0      |     8 */    char* ptr_;
+/*    8      |     8 */    long length_;
+};
+
+
+
+BEGIN
+{
+}
+
+#define envoy_elf /proc/$1/root/usr/local/bin/envoy
+
+uprobe:envoy_elf:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
+/pid == $1/ 
+{ 
+    // $receiver = reg("di"); // "this" pointer
+    // $element_ptr = (struct mailbox_element_ptr*) reg("si");
+    $file = (struct string_view *)arg1;
+    $filterName = str($file->ptr_);
+
+    printf("Hello world: Got setFilterChainName: %s\n", $filterName); 
+}
+
+
+END
+{
+}
+
