@@ -18,7 +18,7 @@ export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
 
 export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
 
-cat $SCRIPT_HOME/trace-filter-match-v2.bt | sed "s/4267/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
+cat $SCRIPT_HOME/trace-filter-match-v2.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
 bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
  */
 
@@ -111,14 +111,14 @@ BEGIN
 }
 
 
-uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
-/pid == 4267/ 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
+/pid == ENVOY_PID/ 
 { 
     @newConnection_this[tid] = reg("di");//%rdi	used to pass 1st argument to functions -> this
 }
 
-uretprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
-/ pid == 4267 /
+uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
+/ pid == ENVOY_PID /
 { 
     if( @newConnection_this[tid] == 0 ) {
         return;
@@ -130,7 +130,7 @@ uretprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket1
     $anchor = $activeTcpSocket_this->primary_vtbl;
     printf("anchor->%p\n", $anchor);
 
-    $vtable = (struct vtable*) ($anchor - 116);
+    $vtable = (struct vtable*) ($anchor - 16);
     printf("vtable->%p\n", $vtable);
 
     $typeinfo = $vtable->typeinfo;
@@ -151,7 +151,7 @@ END
 
 /**
  * 
-cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/4267/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen 
+cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen 
 
 curl -i -v https://172.21.206.195:8080/fortio
 
