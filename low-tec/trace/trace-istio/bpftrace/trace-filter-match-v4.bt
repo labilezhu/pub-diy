@@ -18,7 +18,7 @@ export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
 
 export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
 
-cat $SCRIPT_HOME/trace-filter-match-v3.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
+cat $SCRIPT_HOME/trace-filter-match-v4.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
 bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
  */
 
@@ -105,61 +105,80 @@ struct ActiveTcpSocket {
     struct StreamInfo* stream_info_;
 };
 
-struct mycp {
-    void* d;
-};
 
 BEGIN
 {
 }
 
+/*
+readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpListener.*onAcceptWorker'
 
-uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
+240256: 00000000032ce320  1059 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
+240318: 00000000032ce770    14 FUNC    GLOBAL DEFAULT   14 _ZThn120_N5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
+root@cndt-bcc-ub:/# ^C
+root@cndt-bcc-ub:/# c++filt _ZThn120_N5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
+non-virtual thunk to Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)
+root@cndt-bcc-ub:/# c++filt _ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
+Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)
+*/
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
 /pid == ENVOY_PID/ 
 { 
-    @newConnection_this[tid] = reg("di");//%rdi	used to pass 1st argument to functions -> this
-// }
+    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+    $activeTcpListenerThis = arg0;//%rdi	used to pass 1st argument to functions -> this
+    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker: activeTcpListenerThis->%p\n", 
+        elapsed, tid, comm, $activeTcpListenerThis);
 
-// uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
-// / pid == ENVOY_PID /
-// { 
-//     if( @newConnection_this[tid] == 0 ) {
-//         return;
-//     }
-    $activeTcpSocket_this = (struct ActiveTcpSocket*)@newConnection_this[tid];
-    // $v = (struct char*) (reg("di"));
-    printf("activeTcpSocket_this->%p\n", $activeTcpSocket_this);
+    $ConnectionSocketPtr = arg1;
+}
+uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
+/pid == ENVOY_PID/ 
+{ 
+    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker ret: retval=%p regDi=%p\n", 
+        elapsed, tid, comm, retval,  reg("di"));
+}
 
-    $anchor = $activeTcpSocket_this->primary_vtbl;
-    // printf("anchor->%p\n", $anchor);
-    // printf("buf(anchor)->%r\n", buf($anchor, 24));
-    
-    $v = (uint64)$anchor;
-    $v = $v - 16;
+/*
+readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'createListenerFilterChain'
+227202: 0000000003031ea0    23 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server12ListenerImpl25createListenerFilterChainERNS_7Network21ListenerFilterManagerE
+227429: 0000000003031ec0    23 FUNC    GLOBAL DEFAULT   14 _ZThn8_N5Envoy6Server12ListenerImpl25createListenerFilterChainERNS_7Network21ListenerFilterManagerE
 
-    $vtable = ((struct vtable*)$v);
-    // printf("vtable->%p\n", $vtable);
-    // printf("buf(vtable)->%r\n", buf($vtable,24));
+226097: 0000000002ffcf30     8 FUNC    WEAK   DEFAULT   14 _ZN5Envoy6Server9AdminImpl25createListenerFilterChainERNS_7Network21ListenerFilterManagerE
+*/
 
-    $typeinfo = $vtable->typeinfo;
-    // printf("typeinfo->%p\n", $typeinfo);
 
-    $stream_info = (struct StreamInfo*)($activeTcpSocket_this->stream_info_);
-    printf("stream_info->%p\n", $stream_info);
-    // $filter_chain_name = &($stream_info->filter_chain_name);
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*ActiveTcpSocket*continueFilterChain* 
+/pid == ENVOY_PID/ 
+{ 
+    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+    $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
+    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::continueFilterChain: ActiveTcpSocket->%p\n", 
+        elapsed, tid, comm, $ActiveTcpSocket);
 
-    printf("filter_chain_name=%r\n", buf($stream_info->filter_chain_name, 64) );
+    // printf("%s\n", ustack(4));
+}
 
-    printf("comm:%s,tid:%d: Got ActiveTcpSocket::newConnection() \n", comm, tid ); 
-    // printf("tid:%d: Got setFilterChainName=%s, lenght=%d\n %s \n", tid, $filterName, $filterNameLength, ustack ); 
-    // printf("comm:%s,tid:%d: Got activeTcpSocket_this=%d\n", comm, tid, $activeTcpSocket_this ); 
 
+//Envoy::Network::SocketImpl::SocketImpl
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*Ipv4Instance*
+/pid == ENVOY_PID/ 
+{ 
+    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+    $SocketImpl = arg0;//%rdi	used to pass 1st argument to functions -> this
+    printf("elapsed=%d: tid=%d,comm=%s: Ipv4Instance::Ipv4Instance: Ipv4Instance->%p\n", 
+        elapsed, tid, comm, $SocketImpl);
+
+    // printf("usym:%s\n", usym(reg("ip")));
+    printf("func:%s\n", ustack(6));
+
+    // printf("%s\n", ustack(4));
 }
 
 
 END
 {
-    clear(@newConnection_this);
+    // clear(@newConnection_this);
 }
 
 

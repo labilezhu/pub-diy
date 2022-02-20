@@ -105,61 +105,34 @@ struct ActiveTcpSocket {
     struct StreamInfo* stream_info_;
 };
 
-struct mycp {
-    void* d;
-};
 
 BEGIN
 {
 }
 
 
-uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImplC2ENS_4Http8ProtocolERNS_10TimeSourceERKNSt3__110shared_ptrIKNS_7Network21SocketAddressProviderEEENS7_INS0_11FilterStateEEENSE_8LifeSpanE 
 /pid == ENVOY_PID/ 
 { 
-    @newConnection_this[tid] = reg("di");//%rdi	used to pass 1st argument to functions -> this
-// }
-
-// uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv 
-// / pid == ENVOY_PID /
-// { 
-//     if( @newConnection_this[tid] == 0 ) {
-//         return;
-//     }
-    $activeTcpSocket_this = (struct ActiveTcpSocket*)@newConnection_this[tid];
-    // $v = (struct char*) (reg("di"));
-    printf("activeTcpSocket_this->%p\n", $activeTcpSocket_this);
-
-    $anchor = $activeTcpSocket_this->primary_vtbl;
-    // printf("anchor->%p\n", $anchor);
-    // printf("buf(anchor)->%r\n", buf($anchor, 24));
-    
-    $v = (uint64)$anchor;
-    $v = $v - 16;
-
-    $vtable = ((struct vtable*)$v);
-    // printf("vtable->%p\n", $vtable);
-    // printf("buf(vtable)->%r\n", buf($vtable,24));
-
-    $typeinfo = $vtable->typeinfo;
-    // printf("typeinfo->%p\n", $typeinfo);
-
-    $stream_info = (struct StreamInfo*)($activeTcpSocket_this->stream_info_);
-    printf("stream_info->%p\n", $stream_info);
-    // $filter_chain_name = &($stream_info->filter_chain_name);
-
-    printf("filter_chain_name=%r\n", buf($stream_info->filter_chain_name, 64) );
-
-    printf("comm:%s,tid:%d: Got ActiveTcpSocket::newConnection() \n", comm, tid ); 
-    // printf("tid:%d: Got setFilterChainName=%s, lenght=%d\n %s \n", tid, $filterName, $filterNameLength, ustack ); 
-    // printf("comm:%s,tid:%d: Got activeTcpSocket_this=%d\n", comm, tid, $activeTcpSocket_this ); 
-
+    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+    $streamInfo = arg0;//%rdi	used to pass 1st argument to functions -> this
+    printf("streamInfo->%p\n", $streamInfo);
 }
+
+
+uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImplC2ENS_4Http8ProtocolERNS_10TimeSourceERKNSt3__110shared_ptrIKNS_7Network21SocketAddressProviderEEENS7_INS0_11FilterStateEEENSE_8LifeSpanE 
+/pid == ENVOY_PID/ 
+{ 
+    $streamInfo = retval;//%rdi	used to pass 1st argument to functions -> this
+    printf("retval:streamInfo->%p\n", $streamInfo);
+    printf("retval:reg(\"di\")=%p\n", reg("di"));
+}
+
 
 
 END
 {
-    clear(@newConnection_this);
+    // clear(@newConnection_this);
 }
 
 
