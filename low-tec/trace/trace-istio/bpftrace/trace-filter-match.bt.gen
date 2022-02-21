@@ -140,40 +140,55 @@ uretprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListene
 }
 
 /*
-readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'createListenerFilterChain'
-227202: 0000000003031ea0    23 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server12ListenerImpl25createListenerFilterChainERNS_7Network21ListenerFilterManagerE
-227429: 0000000003031ec0    23 FUNC    GLOBAL DEFAULT   14 _ZThn8_N5Envoy6Server12ListenerImpl25createListenerFilterChainERNS_7Network21ListenerFilterManagerE
+readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpSocket' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'ActiveTcpSocket::ActiveTcpSocket'
+    23  Envoy::Server::ActiveTcpSocket::ActiveTcpSocket(Envoy::Server::ActiveTcpListener&, std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool)
 
-226097: 0000000002ffcf30     8 FUNC    WEAK   DEFAULT   14 _ZN5Envoy6Server9AdminImpl25createListenerFilterChainERNS_7Network21ListenerFilterManagerE
+readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpSocket' | grep FUNC | nl | egrep '^\s+23\s+'
+
 */
 
-
-uprobe:/proc/4267/root/usr/local/bin/envoy:*ActiveTcpSocket*continueFilterChain* 
+uprobe:/proc/4267/root/usr/local/bin/envoy:*ActiveTcpSocket*
 /pid == 4267/ 
 { 
     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
     $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
-    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::continueFilterChain: ActiveTcpSocket->%p\n", 
+    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::* arg0=%p\n", 
         elapsed, tid, comm, $ActiveTcpSocket);
+
+     printf("%s\n", ustack(3))
 
     // printf("%s\n", ustack(4));
 }
 
 
-//Envoy::Network::SocketImpl::SocketImpl
-uprobe:/proc/4267/root/usr/local/bin/envoy:*Ipv4Instance*
+uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ERNS0_17ActiveTcpListenerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS4_14default_deleteIS7_EEEEb
 /pid == 4267/ 
 { 
     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
-    $SocketImpl = arg0;//%rdi	used to pass 1st argument to functions -> this
-    printf("elapsed=%d: tid=%d,comm=%s: Ipv4Instance::Ipv4Instance: Ipv4Instance->%p\n", 
-        elapsed, tid, comm, $SocketImpl);
+    $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
+    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::ActiveTcpSocket arg0=%p\n", 
+        elapsed, tid, comm, $ActiveTcpSocket);
 
-    // printf("usym:%s\n", usym(reg("ip")));
-    printf("func:%s\n", ustack(6));
+     printf("%s\n", ustack(3))
 
     // printf("%s\n", ustack(4));
 }
+
+
+// //Envoy::Network::SocketImpl::SocketImpl
+// uprobe:/proc/4267/root/usr/local/bin/envoy:*Ipv4Instance*
+// /pid == 4267/ 
+// { 
+//     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+//     $SocketImpl = arg0;//%rdi	used to pass 1st argument to functions -> this
+//     printf("elapsed=%d: tid=%d,comm=%s: Ipv4Instance::Ipv4Instance: Ipv4Instance->%p\n", 
+//         elapsed, tid, comm, $SocketImpl);
+
+//     // printf("usym:%s\n", usym(reg("ip")));
+//     printf("func:%s\n", ustack(6));
+
+//     // printf("%s\n", ustack(4));
+// }
 
 
 END
