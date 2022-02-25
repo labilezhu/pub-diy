@@ -2,7 +2,6 @@
 
 
 /**
-
 readelf -s --wide  ~/envoy.mybuild | egrep 'ActiveTcpListener.*newConnection'
 
 function getEnvoyPID()
@@ -19,87 +18,66 @@ export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
 docker exec -it cndt-bcc-ub bash -c "PID=$PID bash"
 
 export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
-
 cat $SCRIPT_HOME/trace-filter-match-v4.bt | sed "s/4267/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
 bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
  */
 
 
+/**
+Envoy::Server::ActiveTcpSocket::ActiveTcpSocket(Envoy::Server::ActiveTcpListener&, 
+    std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool)+0
 
+class AcceptedSocketImpl : public ConnectionSocketImpl;
 
+class ConnectionSocketImpl : public SocketImpl, public ConnectionSocket;
+
+class SocketImpl : public virtual Socket;
+
+class ConnectionSocket : public virtual Socket, public virtual ScopeTrackedObject
+
+class SocketImpl {
+private:
+      const std::shared_ptr<SocketAddressSetterImpl> address_provider_;
+}
+
+class SocketAddressSetter : public SocketAddressProvider;
+class SocketAddressSetterImpl : public SocketAddressSetter
+
+ */
+
+struct typeinfo {
+  void* helper;
+  char* typename;
+  // void* thunks[nfuncs];
+  struct typeinfo* parentTypeInfo; // aka thunks[0], this is where the vtbl* in the class points to
+};
 
 
 struct vtable {
   long long int parent_offset;
-  void* typeinfo;
+  struct typeinfo* typeinfo;
   // void* thunks[nfuncs];
-  char* anchor; // aka thunks[0], this is where the vtbl* in the class points to
-};
-// (gdb) print sizeof(long long int)
-// $1 = 8
-
-
-/*
-(gdb) ptype \o struct std::__1::shared_ptr<Envoy::Network::SocketAddressProvider const>
-\* offset    |  size *\  type = class std::__1::shared_ptr<Envoy::Network::SocketAddressProvider const> [with _Tp = const Envoy::Network::SocketAddressProvider] {
-                         private:
-\*    0      |     8 *\    _Tp *__ptr_;
-\*    8      |     8 *\    std::__1::__shared_weak_count *__cntrl_;
-
-                           \* total size (bytes):   16 *\
-                         }
-*/
-struct SocketAddressProviderSharedPtr {
-    // __ptr_
+  void* anchor; // aka thunks[0], this is where the vtbl* in the class points to
 };
 
-
-/*
-ptype /o struct Envoy::StreamInfo::StreamInfoImpl
-\* offset    |  size *\  type = struct Envoy::StreamInfo::StreamInfoImpl : public Envoy::StreamInfo::StreamInfo {
-\*  568      |    16 *\    const Envoy::Network::SocketAddressProviderSharedPtr downstream_address_provider_;
-\*  776      |    24 *\    std::__1::string filter_chain_name_;
-
-*/
-struct StreamInfo {
-    char padd[568];
-    struct SocketAddressProviderSharedPtr downstream_address_provider_;
-    char padd2[776-16-568];
-    char filter_chain_name[64];
+struct compressed_ptr_pair_elem {
+    void* __value_;
 };
 
-/*
-(gdb) ptype \o struct Envoy::Server::ActiveTcpSocket
-\* offset    |  size *\  type = struct Envoy::Server::ActiveTcpSocket : public Envoy::Network::ListenerFilterManager, public Envoy::Network::ListenerFilterCallbacks
-        , public Envoy::LinkedObject<Envoy::Server::ActiveTcpSocket>, public Envoy::Event::DeferredDeletable, public Envoy::Logger::Loggable<Envoy::Logger::Id::conn_handler> {
-\*   40      |     8 *\    Envoy::Server::ActiveTcpListener &listener_;
-\*   48      |     8 *\    Envoy::Network::ConnectionSocketPtr socket_;
-\*  104      |     8 *\    class std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> > [with _Tp = Envoy::StreamInfo::StreamInfo, 
-         _Dp = std::__1::default_delete<Envoy::StreamInfo::StreamInfo>] {
-                             private:
-\*  104      |     8 *\        class std::__1::__compressed_pair<_Tp*, _Dp> [with _T1 = _Tp *, _T2 = _Dp] : private std::__1::__compressed_pair_elem<_Tp*, 0, false>
-        , private std::__1::__compressed_pair_elem<_Dp, 1, true> {
-
-                                   \* total size (bytes):    8 *\
-                               } __ptr_;
-
-                               \* total size (bytes):    8 *\
-                           } stream_info_;
-\*  112      |     1 *\    bool connected_;
-\* XXX  7-byte padding *\
-
-                           \* total size (bytes):  120 *\
-                         }
-*/
-struct ActiveTcpSocket {
-    void* primary_vtbl;   // vtbl for caf::memory_managed and caf::mailbox_element
-    char padd[104-8];
-    struct StreamInfo* stream_info_;
+struct share_ptr {
+    struct compressed_ptr_pair_elem  __ptr_;
 };
 
 struct unique_ptr {
     void* __ptr_;
-}
+};
+
+
+struct ConnectionSocketImpl {
+    void* primary_vtbl;   // vtbl for caf::memory_managed and caf::mailbox_element
+    char padd[104-8];
+    struct StreamInfo* stream_info_;
+};
 
 
 BEGIN
@@ -111,29 +89,28 @@ readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpListene
 
 240256: 00000000032ce320  1059 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
 240318: 00000000032ce770    14 FUNC    GLOBAL DEFAULT   14 _ZThn120_N5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
-root@cndt-bcc-ub:/# ^C
 root@cndt-bcc-ub:/# c++filt _ZThn120_N5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
 non-virtual thunk to Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)
 root@cndt-bcc-ub:/# c++filt _ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
 Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)
 */
-uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
-/pid == 4267/ 
-{ 
-    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
-    $activeTcpListenerThis = arg0;//%rdi	used to pass 1st argument to functions -> this
-    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker: activeTcpListenerThis->%p\n", 
-        elapsed, tid, comm, $activeTcpListenerThis);
+// uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
+// /pid == 4267/ 
+// { 
+//     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+//     $activeTcpListenerThis = arg0;//%rdi	used to pass 1st argument to functions -> this
+//     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker: activeTcpListenerThis->%p\n", 
+//         elapsed, tid, comm, $activeTcpListenerThis);
 
-    $ConnectionSocketPtr = arg1;
-}
-uretprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
-/pid == 4267/ 
-{ 
-    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
-    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker ret: retval=%p regDi=%p\n", 
-        elapsed, tid, comm, retval,  reg("di"));
-}
+//     $ConnectionSocketPtr = arg1;
+// }
+// uretprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
+// /pid == 4267/ 
+// { 
+//     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+//     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker ret: retval=%p regDi=%p\n", 
+//         elapsed, tid, comm, retval,  reg("di"));
+// }
 
 /*
 readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpSocket' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'ActiveTcpSocket::ActiveTcpSocket'
@@ -143,24 +120,36 @@ readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpSocket'
 
 */
 
-uprobe:/proc/4267/root/usr/local/bin/envoy:*ActiveTcpSocket*
-/pid == 4267/ 
-{ 
-    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
-    $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
-    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::* arg0=%p\n", 
-        elapsed, tid, comm, $ActiveTcpSocket);
+// uprobe:/proc/4267/root/usr/local/bin/envoy:*ActiveTcpSocket*
+// /pid == 4267/ 
+// { 
+//     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+//     $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
+//     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::* arg0=%p\n", 
+//         elapsed, tid, comm, $ActiveTcpSocket);
 
-     printf("%s\n", ustack(1))
+//      printf("%s\n", ustack(1))
 
-    // printf("%s\n", ustack(4));
-}
+//     // printf("%s\n", ustack(4));
+// }
 
 
+/*
+ActiveTcpSocket::ActiveTcpSocket
+  ActiveTcpSocket(ActiveTcpListener& listener, Network::ConnectionSocketPtr&& socket,
+                   bool hand_off_restored_destination_connections)
+ using ConnectionSocketPtr = std::unique_ptr<ConnectionSocket>;
 
-// ActiveTcpSocket::ActiveTcpSocket
-//   ActiveTcpSocket(ActiveTcpListener& listener, Network::ConnectionSocketPtr&& socket,
-//                   bool hand_off_restored_destination_connections)
+ using ConnectionSocketPtr = std::unique_ptr<ConnectionSocket>;
+
+(gdb) p socket
+$84 = (Envoy::Network::ConnectionSocketPtr &&) @0x7f5cbbf6fa90: 
+{__ptr_ = {
+        <std::__1::__compressed_pair_elem<Envoy::Network::ConnectionSocket*, 0, false>> = {__value_ = 0x55d15ca52038},
+        ...}
+
+
+*/
 uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ERNS0_17ActiveTcpListenerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS4_14default_deleteIS7_EEEEb
 /pid == 4267/ 
 { 
@@ -169,26 +158,37 @@ uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::ActiveTcpSocket arg0=%p\n", 
         elapsed, tid, comm, $ActiveTcpSocket);
 
-     printf("%s\n", ustack(3))
+    printf("arg0=%p, arg1=%p, arg2=%p\n", arg0,arg1,arg2);
 
-    // printf("%s\n", ustack(4));
+    printf("%s\n", ustack(3));
+
+    $p_share_ptr_socket = (struct share_ptr *)arg2;
+    // printf("p_share_ptr_socket=%p\n", $p_share_ptr_socket);
+    $pConnectionSocket = (struct ConnectionSocketImpl *) ($p_share_ptr_socket->__ptr_.__value_);
+    printf("pConnectionSocket=%p\n", $pConnectionSocket);
+
+    $pAnchor = *(uint64*)$pConnectionSocket;
+
+    $ppTypeInfoConnectionSocket = (struct typeinfo**) (((uint64)$pAnchor) - 8);
+
+    $topOffConnectionSocket = (struct vtable*) (((uint64)$pAnchor) - 16);
+    printf("topOffConnectionSocket=%d\n", $topOffConnectionSocket->parent_offset);
+
+    // printf("ppTypeInfoConnectionSocket=%p\n", $ppTypeInfoConnectionSocket);
+
+    // printf("usym(ppTypeInfoConnectionSocket)=%s\n", usym($ppTypeInfoConnectionSocket));
+
+    $pTypeInfoConnectionSocket = *$ppTypeInfoConnectionSocket;
+
+    // printf("pTypeInfoConnectionSocket=%p\n", $pTypeInfoConnectionSocket);
+
+    printf("pTypeInfoConnectionSocket->typename=%s\n", str($pTypeInfoConnectionSocket->typename));
+    //stdout: pTypeInfoConnectionSocket->typename=N5Envoy7Network18AcceptedSocketImplE
+
+
 }
 
 
-// //Envoy::Network::SocketImpl::SocketImpl
-// uprobe:/proc/4267/root/usr/local/bin/envoy:*Ipv4Instance*
-// /pid == 4267/ 
-// { 
-//     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
-//     $SocketImpl = arg0;//%rdi	used to pass 1st argument to functions -> this
-//     printf("elapsed=%d: tid=%d,comm=%s: Ipv4Instance::Ipv4Instance: Ipv4Instance->%p\n", 
-//         elapsed, tid, comm, $SocketImpl);
-
-//     // printf("usym:%s\n", usym(reg("ip")));
-//     printf("func:%s\n", ustack(6));
-
-//     // printf("%s\n", ustack(4));
-// }
 
 
 END
@@ -197,31 +197,3 @@ END
 }
 
 
-/**
- * 
-cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/4267/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen 
-
-curl -i -v https://172.21.206.195:8080/fortio
-
-
-tid:4416: Got setFilterChainName=0.0.0.0_8080, lenght=12
- 
-        Envoy::StreamInfo::StreamInfoImpl::setFilterChainName(absl::string_view)+0
-        Envoy::Server::ActiveTcpSocket::newConnection()+377
-        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
-        Envoy::Extensions::ListenerFilters::TlsInspector::Filter::done(bool)+380
-        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
-        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
-        event_process_active_single_queue+1416
-        event_base_loop+1953
-        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
-        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
-        start_thread+217
-
-export INGRESS_HOST=172.21.206.195
-export SECURE_INGRESS_PORT=8080
-curl -v -HHost:fortio-server.idm-mark.com --resolve "fortio-server.idm-mark.com:$SECURE_INGRESS_PORT:$INGRESS_HOST" \
-"http://fortio-server.idm-mark.com:$SECURE_INGRESS_PORT/fortio"
-
-
- */
