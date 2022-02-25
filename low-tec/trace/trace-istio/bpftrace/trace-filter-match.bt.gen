@@ -45,11 +45,15 @@ class SocketAddressSetterImpl : public SocketAddressSetter
 
  */
 
+struct virtualobj {
+    long long unsigned int vtableAnchorAddr;
+    void* data;
+};
+
 struct typeinfo {
   void* helper;
   char* typename;
-  // void* thunks[nfuncs];
-  struct typeinfo* parentTypeInfo; // aka thunks[0], this is where the vtbl* in the class points to
+  struct typeinfo* parentTypeInfo; 
 };
 
 
@@ -167,18 +171,22 @@ uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
     $pConnectionSocket = (struct ConnectionSocketImpl *) ($p_share_ptr_socket->__ptr_.__value_);
     printf("pConnectionSocket=%p\n", $pConnectionSocket);
 
-    $pAnchor = *(uint64*)$pConnectionSocket;
+    $pVirtualobj = (struct virtualobj *)$pConnectionSocket;
 
-    $ppTypeInfoConnectionSocket = (struct typeinfo**) (((uint64)$pAnchor) - 8);
+    // $pAnchor = *(uint64*)$pConnectionSocket;
+    $pAnchor = $pVirtualobj->vtableAnchorAddr;
 
     $topOffConnectionSocket = (struct vtable*) (((uint64)$pAnchor) - 16);
     printf("topOffConnectionSocket=%d\n", $topOffConnectionSocket->parent_offset);
+
+    // $ppTypeInfoConnectionSocket = (struct typeinfo**) (((uint64)$pAnchor) - 8);
+    $pTypeInfoConnectionSocket = $topOffConnectionSocket->typeinfo;
 
     // printf("ppTypeInfoConnectionSocket=%p\n", $ppTypeInfoConnectionSocket);
 
     // printf("usym(ppTypeInfoConnectionSocket)=%s\n", usym($ppTypeInfoConnectionSocket));
 
-    $pTypeInfoConnectionSocket = *$ppTypeInfoConnectionSocket;
+    // $pTypeInfoConnectionSocket = *$ppTypeInfoConnectionSocket;
 
     // printf("pTypeInfoConnectionSocket=%p\n", $pTypeInfoConnectionSocket);
 
