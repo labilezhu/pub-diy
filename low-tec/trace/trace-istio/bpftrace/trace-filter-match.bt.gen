@@ -16,6 +16,8 @@ function getEnvoyPID()
 
 export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
 
+docker exec -it cndt-bcc-ub bash -c "PID=$PID bash"
+
 export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
 
 cat $SCRIPT_HOME/trace-filter-match-v4.bt | sed "s/4267/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
@@ -24,17 +26,7 @@ bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
 
 
 
-/**
-void ActiveTcpSocket::newConnection() {
-    ...
-    listener_.newConnection(std::move(socket_), std::move(stream_info_));
-}
 
-readelf -s --wide  ~/envoy.mybuild | egrep 'ActiveTcpSocket.*newConnection'
-240238: 00000000032cc510   510 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv
-
-
-*/
 
 
 struct vtable {
@@ -105,6 +97,10 @@ struct ActiveTcpSocket {
     struct StreamInfo* stream_info_;
 };
 
+struct unique_ptr {
+    void* __ptr_;
+}
+
 
 BEGIN
 {
@@ -155,12 +151,16 @@ uprobe:/proc/4267/root/usr/local/bin/envoy:*ActiveTcpSocket*
     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::* arg0=%p\n", 
         elapsed, tid, comm, $ActiveTcpSocket);
 
-     printf("%s\n", ustack(3))
+     printf("%s\n", ustack(1))
 
     // printf("%s\n", ustack(4));
 }
 
 
+
+// ActiveTcpSocket::ActiveTcpSocket
+//   ActiveTcpSocket(ActiveTcpListener& listener, Network::ConnectionSocketPtr&& socket,
+//                   bool hand_off_restored_destination_connections)
 uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ERNS0_17ActiveTcpListenerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS4_14default_deleteIS7_EEEEb
 /pid == 4267/ 
 { 
