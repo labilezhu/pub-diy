@@ -47,7 +47,7 @@ class SocketAddressSetterImpl : public SocketAddressSetter
 
 struct virtualobj {
     long long unsigned int vtableAnchorAddr;
-    void* data;
+    void* other;
 };
 
 struct typeinfo {
@@ -69,18 +69,41 @@ struct compressed_ptr_pair_elem {
 };
 
 struct share_ptr {
-    struct compressed_ptr_pair_elem  __ptr_;
-};
-
-struct unique_ptr {
     void* __ptr_;
 };
 
+struct unique_ptr {
+    struct compressed_ptr_pair_elem  __ptr_;
+};
+
+/*
+(gdb) p ((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)
+$87 = (Envoy::Network::AcceptedSocketImpl *) 0x55d15ca52000
+(gdb) p &(((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)->address_provider_)
+$89 = (const std::__1::shared_ptr<Envoy::Network::SocketAddressSetterImpl> *) 0x55d15ca52010
+(gdb) p/x 0x55d15ca52010-0x55d15ca52000
+$90 = 0x10
+*/
+
 
 struct ConnectionSocketImpl {
-    void* primary_vtbl;   // vtbl for caf::memory_managed and caf::mailbox_element
-    char padd[104-8];
-    struct StreamInfo* stream_info_;
+    void* a;
+};
+
+
+struct AcceptedSocketImpl {
+
+// struct ConnectionSocketImpl {
+    // struct SocketImpl {
+        char pad[0x10];
+        struct share_ptr address_provider_;//shared_ptr_SocketAddressSetterImpl
+    // }
+// };
+
+};
+
+struct SocketAddressSetterImpl {
+    void* a;
 };
 
 
@@ -162,37 +185,39 @@ uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::ActiveTcpSocket arg0=%p\n", 
         elapsed, tid, comm, $ActiveTcpSocket);
 
-    printf("arg0=%p, arg1=%p, arg2=%p\n", arg0,arg1,arg2);
+    // printf("arg0=%p, arg1=%p, arg2=%p\n", arg0,arg1,arg2);
 
     printf("%s\n", ustack(3));
 
-    $p_share_ptr_socket = (struct share_ptr *)arg2;
+    $p_share_ptr_socket = (struct unique_ptr *)arg2;
     // printf("p_share_ptr_socket=%p\n", $p_share_ptr_socket);
-    $pConnectionSocket = (struct ConnectionSocketImpl *) ($p_share_ptr_socket->__ptr_.__value_);
+    $pConnectionSocket = (struct ConnectionSocketImpl*) ($p_share_ptr_socket->__ptr_.__value_);
     printf("pConnectionSocket=%p\n", $pConnectionSocket);
 
     $pVirtualobj = (struct virtualobj *)$pConnectionSocket;
-
-    // $pAnchor = *(uint64*)$pConnectionSocket;
     $pAnchor = $pVirtualobj->vtableAnchorAddr;
-
-    $topOffConnectionSocket = (struct vtable*) (((uint64)$pAnchor) - 16);
-    printf("topOffConnectionSocket=%d\n", $topOffConnectionSocket->parent_offset);
-
-    // $ppTypeInfoConnectionSocket = (struct typeinfo**) (((uint64)$pAnchor) - 8);
-    $pTypeInfoConnectionSocket = $topOffConnectionSocket->typeinfo;
-
-    // printf("ppTypeInfoConnectionSocket=%p\n", $ppTypeInfoConnectionSocket);
-
-    // printf("usym(ppTypeInfoConnectionSocket)=%s\n", usym($ppTypeInfoConnectionSocket));
-
-    // $pTypeInfoConnectionSocket = *$ppTypeInfoConnectionSocket;
-
-    // printf("pTypeInfoConnectionSocket=%p\n", $pTypeInfoConnectionSocket);
-
-    printf("pTypeInfoConnectionSocket->typename=%s\n", str($pTypeInfoConnectionSocket->typename));
+    $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+    printf("parent_offset=%d\n", $pVtable->parent_offset);
+    $pTypeInfo = $pVtable->typeinfo;
+    printf("pTypeInfoConnectionSocket->typename=%s\n", str($pTypeInfo->typename));
     //stdout: pTypeInfoConnectionSocket->typename=N5Envoy7Network18AcceptedSocketImplE
 
+    if( str($pTypeInfo->typename) == "N5Envoy7Network18AcceptedSocketImplE" ) {
+        printf("type is Envoy::Network::AcceptedSocketImpl\n");
+        $pAcceptedSocketImpl = (struct AcceptedSocketImpl*) ((uint64)$pConnectionSocket + $pVtable->parent_offset);
+        printf("pAcceptedSocketImpl=%p\n", $pAcceptedSocketImpl);
+
+        $pSocketAddressSetterImpl = (struct SocketAddressSetterImpl*) ($pAcceptedSocketImpl->address_provider_.__ptr_ );
+        printf("pSocketAddressSetterImpl=%p\n", $pSocketAddressSetterImpl);
+
+        $pVirtualobj = (struct virtualobj *)$pSocketAddressSetterImpl;
+        $pAnchor = $pVirtualobj->vtableAnchorAddr;
+        $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+        printf("pSocketAddressSetterImpl_parent_offset=%d\n", $pVtable->parent_offset);
+        $pTypeInfo = $pVtable->typeinfo;
+        printf("SocketAddressSetterImpl_pTypeInfo->typename=%s\n", str($pTypeInfo->typename));
+
+    }
 
 }
 
