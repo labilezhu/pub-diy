@@ -285,12 +285,12 @@ uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocke
 { 
     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
     $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
-    printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::ActiveTcpSocket arg0=%p\n", 
+    printf("***** elapsed=%d: tid=%d,comm=%s: ActiveTcpSocket::ActiveTcpSocket arg0=%p\n", 
         elapsed, tid, comm, $ActiveTcpSocket);
 
     // printf("arg0=%p, arg1=%p, arg2=%p\n", arg0,arg1,arg2);
 
-    printf("%s\n", ustack(3));
+    // printf("%s\n", ustack(3));
 
     $p_share_ptr_socket = (struct unique_ptr *)arg2;
     // printf("p_share_ptr_socket=%p\n", $p_share_ptr_socket);
@@ -330,8 +330,13 @@ uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocke
         // printf("typename=%s\n", str($pTypeInfo->typename));
         if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
             $p_remote_address = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+            // Destination port is big endian, it must be flipped
+            $bigEndianPort = $p_remote_address->sin_port;
+            $port = ($bigEndianPort >> 8) | (($bigEndianPort << 8) & 0x00FF00);
+
             printf("p_remote_address->sin_port=%d, p_remote_address->s_addr=%s \n", 
-                $p_remote_address->sin_port, ntop($p_remote_address->s_addr));
+                $port, ntop($p_remote_address->s_addr));
         }
 
         
@@ -343,8 +348,13 @@ uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocke
         // printf("typename=%s\n", str($pTypeInfo->typename));
         if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
             $local_address_ = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+            // Destination port is big endian, it must be flipped
+            $bigEndianPort = $local_address_->sin_port;
+            $port = ($bigEndianPort >> 8) | (($bigEndianPort << 8) & 0x00FF00);
+
             printf("local_address_->sin_port=%d, local_address_->s_addr=%s \n", 
-                $local_address_->sin_port, ntop($local_address_->s_addr));
+                $port, ntop($local_address_->s_addr));
         }      
 
 
@@ -356,8 +366,13 @@ uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocke
         // printf("typename=%s\n", str($pTypeInfo->typename));
         if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
             $direct_remote_address_ = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+            // Destination port is big endian, it must be flipped
+            $bigEndianPort = $direct_remote_address_->sin_port;
+            $port = ($bigEndianPort >> 8) | (($bigEndianPort << 8) & 0x00FF00);
+
             printf("direct_remote_address_->sin_port=%d, direct_remote_address_->s_addr=%s \n", 
-                $direct_remote_address_->sin_port, ntop($direct_remote_address_->s_addr));
+                $port, ntop($direct_remote_address_->s_addr));
         }             
 
         printf("connection_id_.engaged_=%d, connection_id_.data_=%d \n", 
@@ -370,8 +385,43 @@ uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocke
 
 }
 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*OriginalDstFilter*onAccept*
+/pid == ENVOY_PID/ 
+{
+    printf("***** elapsed=%d: tid=%d,comm=%s: OriginalDstFilter::onAccept this=%p\n", 
+        elapsed, tid, comm, arg0);
+}
 
 
+// labile@labile-T30 ➜ labile $ readelf -s --wide  ~/envoy.debug | egrep 'restoreLocalAddress'
+// 1215661: 0000000005812c90    51 FUNC    WEAK   DEFAULT   14 _ZN5Envoy7Network23SocketAddressSetterImpl19restoreLocalAddressERKNSt3__110shared_ptrIKNS
+// SocketAddressSetterImpl::restoreLocalAddress(const Address::InstanceConstSharedPtr& local_address)
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*restoreLocalAddress*
+/pid == ENVOY_PID/ 
+{
+
+    printf("***** elapsed=%d: tid=%d,comm=%s: SocketAddressSetterImpl::restoreLocalAddress this=%p\n", 
+        elapsed, tid, comm, arg0);
+
+    $pVirtualobj = (struct virtualobj *) arg1;
+    $pAnchor = $pVirtualobj->vtableAnchorAddr;
+    $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+    // printf("parent_offset=%d\n", $pVtable->parent_offset);
+    $pTypeInfo = $pVtable->typeinfo;
+    // printf("typename=%s\n", str($pTypeInfo->typename));
+    if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+        $local_address_ = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+        // Destination port is big endian, it must be flipped
+        $bigEndianPort = $local_address_->sin_port;
+        $port = ($bigEndianPort >> 8) | (($bigEndianPort << 8) & 0x00FF00);
+
+        printf("local_address_->sin_port=%d, local_address_->s_addr=%s \n", 
+            $port, ntop($local_address_->s_addr));
+    }      
+
+    printf("%s\n", ustack(6));
+}
 
 END
 {
