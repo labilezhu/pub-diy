@@ -70,11 +70,19 @@ struct compressed_ptr_pair_elem {
 
 struct share_ptr {
     void* __ptr_;
+    char pad[8];
 };
 
 struct unique_ptr {
     struct compressed_ptr_pair_elem  __ptr_;
 };
+
+
+
+struct ConnectionSocketImpl {
+    void* a;
+};
+
 
 /*
 (gdb) p ((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)
@@ -83,14 +91,9 @@ $87 = (Envoy::Network::AcceptedSocketImpl *) 0x55d15ca52000
 $89 = (const std::__1::shared_ptr<Envoy::Network::SocketAddressSetterImpl> *) 0x55d15ca52010
 (gdb) p/x 0x55d15ca52010-0x55d15ca52000
 $90 = 0x10
+
+pSocketAddressSetterImpl
 */
-
-
-struct ConnectionSocketImpl {
-    void* a;
-};
-
-
 struct AcceptedSocketImpl {
 
 // struct ConnectionSocketImpl {
@@ -102,8 +105,108 @@ struct AcceptedSocketImpl {
 
 };
 
+/*
+(gdb) p &($pSocketAddressSetterImpl->connection_id_)
+$110 = (absl::optional<unsigned long> *) 0x55d15ca520f0
+(gdb) p &($pSocketAddressSetterImpl->connection_id_.engaged_)
+$111 = (bool *) 0x55d15ca520f0
+(gdb) p &($pSocketAddressSetterImpl->connection_id_.data_)
+$112 = (unsigned long *) 0x55d15ca520f8
+*/
+struct absl_optional_uint64_t {
+    char engaged_;
+    char pad[7];
+    unsigned long data_;
+};
+
+
+/*
+set $pSocketAddressSetterImpl = ((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)->address_provider_.__ptr_
+p $pSocketAddressSetterImpl
+$97 = (std::__1::shared_ptr<Envoy::Network::SocketAddressSetterImpl>::element_type *) 0x55d15ca52098
+
+p &($pSocketAddressSetterImpl->remote_address_)
+$98 = (Envoy::Network::Address::InstanceConstSharedPtr *) 0x55d15ca520b8
+
+p/x 0x55d15ca520b8-0x55d15ca52098
+$103 = 0x20
+
+p/x (void*)(&($pSocketAddressSetterImpl->local_address_)) - (void*)$pSocketAddressSetterImpl
+$105 = 0x20
+p/x (void*)(&($pSocketAddressSetterImpl->local_address_restored_)) - (void*)$pSocketAddressSetterImpl
+p/x (void*)(&($pSocketAddressSetterImpl->remote_address_)) - (void*)$pSocketAddressSetterImpl
+p/x (void*)(&($pSocketAddressSetterImpl->direct_remote_address_)) - (void*)$pSocketAddressSetterImpl
+
+
+(gdb) ptype \o Envoy::Network::SocketAddressSetterImpl
+\* offset    |  size *\  type = class Envoy::Network::SocketAddressSetterImpl : public Envoy::Network::SocketAddressSetter {
+                         private:
+\*    8      |    16 *\    Envoy::Network::Address::InstanceConstSharedPtr local_address_;
+\*   24      |     1 *\    bool local_address_restored_;
+\* XXX  7-byte hole *\
+\*   32      |    16 *\    Envoy::Network::Address::InstanceConstSharedPtr remote_address_;
+\*   48      |    16 *\    Envoy::Network::Address::InstanceConstSharedPtr direct_remote_address_;
+\*   64      |    24 *\    std::__1::string server_name_;
+\*   88      |    16 *\    class absl::optional<unsigned long> [with T = unsigned long] : private absl::optional_internal::optional_data<T, true>
+        , private absl::optional_internal::optional_ctor_base<absl::optional_internal::copy_traits::copyable>
+        , private absl::optional_internal::optional_assign_base<absl::optional_internal::copy_traits::copyable> {
+
+                               \* total size (bytes):   16 *\
+                           } connection_id_;
+
+                           \* total size (bytes):  104 *\
+                         }
+
+p $pSocketAddressSetterImpl->connection_id_
+
+*/
 struct SocketAddressSetterImpl {
-    void* a;
+    char pad1[8];
+    struct share_ptr local_address_;//std::shared_ptr<const Instance> local_address_;
+    bool local_address_restored_;
+    char pad2[7];
+    struct share_ptr remote_address_;//std::shared_ptr<const Instance> remote_address_;
+    struct share_ptr direct_remote_address_;//std::shared_ptr<const Instance> direct_remote_address_;
+    char pad3[88-48-16];
+    struct absl_optional_uint64_t connection_id_;
+};
+
+/*
+Envoy::Network::Address::Ipv4Instance
+
+(gdb) ptype \o Envoy::Network::Address::Ipv4Instance
+\* offset    |  size *\  type = class Envoy::Network::Address::Ipv4Instance : public Envoy::Network::Address::InstanceBase {
+                         private:
+\*   48      |    56 *\    struct Envoy::Network::Address::Ipv4Instance::IpHelper : public Envoy::Network::Address::Ip {
+\*   56      |    24 *\        struct Envoy::Network::Address::Ipv4Instance::Ipv4Helper : public Envoy::Network::Address::Ipv4 {
+\*   64      |    16 *\            struct sockaddr_in {
+\*   64      |     2 *\                sa_family_t sin_family;
+\*   66      |     2 *\                in_port_t sin_port;
+\*   68      |     4 *\                struct in_addr {
+\*   68      |     4 *\                    in_addr_t s_addr;
+
+                                           \* total size (bytes):    4 *\
+                                       } sin_addr;
+\*   72      |     8 *\                unsigned char sin_zero[8];
+
+                                       \* total size (bytes):   16 *\
+                                   } address_;
+
+                                   \* total size (bytes):   24 *\
+                               } ipv4_;
+\*   80      |    24 *\        std::__1::string friendly_address_;
+
+                               \* total size (bytes):   56 *\
+                           } ip_;
+
+                           \* total size (bytes):  104 *\
+                         }
+*/
+struct Ipv4Instance {
+    char pad1[66];
+    unsigned short sin_port; //size = 2 bytes
+    // char pad2[68-2-66];
+    int s_addr;
 };
 
 
@@ -220,6 +323,17 @@ uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocke
         // if( str($pTypeInfo->typename) == "N5Envoy7Network23SocketAddressSetterImplE" ) {
 
         // }
+        $pVirtualobj = (struct virtualobj *) ($pSocketAddressSetterImpl->remote_address_.__ptr_);
+        $pAnchor = $pVirtualobj->vtableAnchorAddr;
+        $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+        printf("parent_offset=%d\n", $pVtable->parent_offset);
+        $pTypeInfo = $pVtable->typeinfo;
+        printf("typename=%s\n", str($pTypeInfo->typename));
+        if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+            $p_remote_address = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+            printf("p_remote_address->sin_port=%d, p_remote_address->s_addr=%s \n", 
+                $p_remote_address->sin_port, ntop($p_remote_address->s_addr));
+        }
 
     }
 
