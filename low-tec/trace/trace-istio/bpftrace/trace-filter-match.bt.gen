@@ -210,6 +210,35 @@ struct Ipv4Instance {
 };
 
 
+/*
+(gdb) ptype \o Envoy::Extensions::ListenerFilters::TlsInspector::Filter
+\* offset    |  size *\  type = class Envoy::Extensions::ListenerFilters::TlsInspector::Filter : public Envoy::Network::ListenerFilter, private Envoy::Logger::Loggable<Envoy::Logger::Id::filter> {
+                         private:
+\*    8      |    16 *\    Envoy::Extensions::ListenerFilters::TlsInspector::ConfigSharedPtr config_;
+\*   24      |     8 *\    Envoy::Network::ListenerFilterCallbacks *cb_;
+\*   32      |     8 *\    bssl::UniquePtr<SSL> ssl_;
+\*   40      |     8 *\    uint64_t read_;
+*/
+struct TlsInspector_Filter {
+    char pad1[24];
+    struct virtualobj* cb_; //Envoy::Network::ListenerFilterCallbacks *
+};
+
+
+/*
+(gdb) ptype \o Envoy::Server::ActiveTcpSocket
+\* offset    |  size *\  type = struct Envoy::Server::ActiveTcpSocket : public Envoy::Network::ListenerFilterManager
+    , public Envoy::Network::ListenerFilterCallbacks, public Envoy::LinkedObject<Envoy::Server::ActiveTcpSocket>, public Envoy::Event::DeferredDeletable
+        , public Envoy::Logger::Loggable<Envoy::Logger::Id::conn_handler> {
+\*   40      |     8 *\    Envoy::Server::ActiveTcpListener &listener_;
+\*   48      |     8 *\    Envoy::Network::ConnectionSocketPtr socket_;
+*/
+struct ActiveTcpSocket {
+    char pad[48];
+    struct virtualobj* pConnectionSocket_socket_;
+};
+
+
 BEGIN
 {
 }
@@ -385,22 +414,137 @@ uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
 
 }
 
-uprobe:/proc/4267/root/usr/local/bin/envoy:*Filter*onAccept*
+// // Network::FilterStatus Filter::onAccept(Network::ListenerFilterCallbacks& cb)
+// uprobe:/proc/4267/root/usr/local/bin/envoy:*Filter*onAccept*
+// /pid == 4267/ 
+// {
+//     printf("\n***** elapsed=%d: tid=%d,comm=%s: *Filter*.onAccept() this=%p\n", 
+//         elapsed, tid, comm, arg0);
+
+//     // printf("%s\n", ustack(1));
+// }
+
+
+uprobe:/proc/4267/root/usr/local/bin/envoy:*TlsInspector*Filter*done*
 /pid == 4267/ 
 {
-    printf("\n***** elapsed=%d: tid=%d,comm=%s: *Filter*.onAccept() this=%p\n", 
+        printf("\n***** elapsed=%d: tid=%d,comm=%s: *TlsInspector*Filter*.done() this=%p\n", 
         elapsed, tid, comm, arg0);
 
-    printf("%s\n", ustack(1));
+// struct ActiveTcpSocket : public Network::ListenerFilterManager,
+//                          public Network::ListenerFilterCallbacks,    
+
+    $pTlsInspector_Filter = (struct TlsInspector_Filter*) arg0;
+
+        $pListenerFilterCallbacks = $pTlsInspector_Filter->cb_;
+
+        $pVirtualobj = $pListenerFilterCallbacks;
+        $pAnchor = $pVirtualobj->vtableAnchorAddr;
+        $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+        // printf("parent_offset=%d\n", $pVtable->parent_offset);
+        $pTypeInfo = $pVtable->typeinfo;
+        // printf("pListenerFilterCallbacks.typename=%s\n", str($pTypeInfo->typename));
+        // if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+        $pActiveTcpSocket = (struct ActiveTcpSocket*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+            $pConnectionSocket = $pActiveTcpSocket->pConnectionSocket_socket_;
+
+            $pVirtualobj = $pConnectionSocket;
+            $pAnchor = $pVirtualobj->vtableAnchorAddr;
+            $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+            // printf("parent_offset=%d\n", $pVtable->parent_offset);
+            $pTypeInfo = $pVtable->typeinfo;
+            // printf("pConnectionSocket.typename=%s\n", str($pTypeInfo->typename));
+            // if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+            $pAcceptedSocketImpl = (struct AcceptedSocketImpl*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+                $pSocketAddressSetterImpl = (struct SocketAddressSetterImpl*) ($pAcceptedSocketImpl->address_provider_.__ptr_ );
+                printf("pSocketAddressSetterImpl=%p\n", $pSocketAddressSetterImpl);
+
+                printf("connection_id_.engaged_=%d, connection_id_.data_=%d \n", 
+                    $pSocketAddressSetterImpl->connection_id_.engaged_,
+                    $pSocketAddressSetterImpl->connection_id_.data_);
+
 }
 
+/*
+Envoy::Extensions::ListenerFilters::TlsInspector::Filter
+*/
 uprobe:/proc/4267/root/usr/local/bin/envoy:*TlsInspector*onRead*
 /pid == 4267/ 
 {
     printf("\n***** elapsed=%d: tid=%d,comm=%s: *TlsInspector*.onRead() this=%p\n", 
         elapsed, tid, comm, arg0);
 
-    printf("%s\n", ustack(1));
+// struct ActiveTcpSocket : public Network::ListenerFilterManager,
+//                          public Network::ListenerFilterCallbacks,    
+
+    $pTlsInspector_Filter = (struct TlsInspector_Filter*) arg0;
+
+        $pListenerFilterCallbacks = $pTlsInspector_Filter->cb_;
+
+        $pVirtualobj = $pListenerFilterCallbacks;
+        $pAnchor = $pVirtualobj->vtableAnchorAddr;
+        $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+        // printf("parent_offset=%d\n", $pVtable->parent_offset);
+        $pTypeInfo = $pVtable->typeinfo;
+        // printf("pListenerFilterCallbacks.typename=%s\n", str($pTypeInfo->typename));
+        // if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+        $pActiveTcpSocket = (struct ActiveTcpSocket*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+            $pConnectionSocket = $pActiveTcpSocket->pConnectionSocket_socket_;
+
+            $pVirtualobj = $pConnectionSocket;
+            $pAnchor = $pVirtualobj->vtableAnchorAddr;
+            $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+            // printf("parent_offset=%d\n", $pVtable->parent_offset);
+            $pTypeInfo = $pVtable->typeinfo;
+            // printf("pConnectionSocket.typename=%s\n", str($pTypeInfo->typename));
+            // if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+            $pAcceptedSocketImpl = (struct AcceptedSocketImpl*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+                $pSocketAddressSetterImpl = (struct SocketAddressSetterImpl*) ($pAcceptedSocketImpl->address_provider_.__ptr_ );
+                printf("pSocketAddressSetterImpl=%p\n", $pSocketAddressSetterImpl);
+
+                $pVirtualobj = (struct virtualobj *) ($pSocketAddressSetterImpl->remote_address_.__ptr_);
+                $pAnchor = $pVirtualobj->vtableAnchorAddr;
+                $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+                // printf("parent_offset=%d\n", $pVtable->parent_offset);
+                $pTypeInfo = $pVtable->typeinfo;
+                // printf("typename=%s\n", str($pTypeInfo->typename));
+                if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+                    $p_remote_address = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+                    // Destination port is big endian, it must be flipped
+                    $bigEndianPort = $p_remote_address->sin_port;
+                    $port = ($bigEndianPort >> 8) | (($bigEndianPort << 8) & 0x00FF00);
+
+                    printf("p_remote_address->sin_port=%d, p_remote_address->s_addr=%s \n", 
+                        $port, ntop($p_remote_address->s_addr));
+                }
+
+
+                $pVirtualobj = (struct virtualobj *) ($pSocketAddressSetterImpl->local_address_.__ptr_);
+                $pAnchor = $pVirtualobj->vtableAnchorAddr;
+                $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+                // printf("parent_offset=%d\n", $pVtable->parent_offset);
+                $pTypeInfo = $pVtable->typeinfo;
+                // printf("typename=%s\n", str($pTypeInfo->typename));
+                if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+                    $local_address_ = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+
+                    // Destination port is big endian, it must be flipped
+                    $bigEndianPort = $local_address_->sin_port;
+                    $port = ($bigEndianPort >> 8) | (($bigEndianPort << 8) & 0x00FF00);
+
+                    printf("local_address_->sin_port=%d, local_address_->s_addr=%s \n", 
+                        $port, ntop($local_address_->s_addr));
+                }
+
+                printf("connection_id_.engaged_=%d, connection_id_.data_=%d \n", 
+                    $pSocketAddressSetterImpl->connection_id_.engaged_,
+                    $pSocketAddressSetterImpl->connection_id_.data_);
+
 }
 
 
