@@ -114,7 +114,7 @@ $111 = (bool *) 0x55d15ca520f0
 $112 = (unsigned long *) 0x55d15ca520f8
 */
 struct absl_optional_uint64_t {
-    char engaged_;
+    bool engaged_;
     char pad[7];
     unsigned long data_;
 };
@@ -319,21 +319,52 @@ uprobe:/proc/4267/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
         // printf("pSocketAddressSetterImpl_parent_offset=%d\n", $pVtable->parent_offset);
         // $pTypeInfo = $pVtable->typeinfo;
         // printf("SocketAddressSetterImpl_pTypeInfo->typename=%s\n", str($pTypeInfo->typename));
-
         // if( str($pTypeInfo->typename) == "N5Envoy7Network23SocketAddressSetterImplE" ) {
-
         // }
+
         $pVirtualobj = (struct virtualobj *) ($pSocketAddressSetterImpl->remote_address_.__ptr_);
         $pAnchor = $pVirtualobj->vtableAnchorAddr;
         $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
-        printf("parent_offset=%d\n", $pVtable->parent_offset);
+        // printf("parent_offset=%d\n", $pVtable->parent_offset);
         $pTypeInfo = $pVtable->typeinfo;
-        printf("typename=%s\n", str($pTypeInfo->typename));
+        // printf("typename=%s\n", str($pTypeInfo->typename));
         if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
             $p_remote_address = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
             printf("p_remote_address->sin_port=%d, p_remote_address->s_addr=%s \n", 
                 $p_remote_address->sin_port, ntop($p_remote_address->s_addr));
         }
+
+        
+        $pVirtualobj = (struct virtualobj *) ($pSocketAddressSetterImpl->local_address_.__ptr_);
+        $pAnchor = $pVirtualobj->vtableAnchorAddr;
+        $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+        // printf("parent_offset=%d\n", $pVtable->parent_offset);
+        $pTypeInfo = $pVtable->typeinfo;
+        // printf("typename=%s\n", str($pTypeInfo->typename));
+        if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+            $local_address_ = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+            printf("local_address_->sin_port=%d, local_address_->s_addr=%s \n", 
+                $local_address_->sin_port, ntop($local_address_->s_addr));
+        }      
+
+
+        $pVirtualobj = (struct virtualobj *) ($pSocketAddressSetterImpl->direct_remote_address_.__ptr_);
+        $pAnchor = $pVirtualobj->vtableAnchorAddr;
+        $pVtable = (struct vtable*) (((uint64)$pAnchor) - 16);
+        // printf("parent_offset=%d\n", $pVtable->parent_offset);
+        $pTypeInfo = $pVtable->typeinfo;
+        // printf("typename=%s\n", str($pTypeInfo->typename));
+        if( str($pTypeInfo->typename) == "N5Envoy7Network7Address12Ipv4InstanceE" ) {
+            $direct_remote_address_ = (struct Ipv4Instance*) ((uint64)$pVirtualobj + $pVtable->parent_offset);
+            printf("direct_remote_address_->sin_port=%d, direct_remote_address_->s_addr=%s \n", 
+                $direct_remote_address_->sin_port, ntop($direct_remote_address_->s_addr));
+        }             
+
+        printf("connection_id_.engaged_=%d, connection_id_.data_=%d \n", 
+            $pSocketAddressSetterImpl->connection_id_.engaged_,
+            $pSocketAddressSetterImpl->connection_id_.data_);
+
+        
 
     }
 
