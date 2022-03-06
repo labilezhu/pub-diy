@@ -18,7 +18,7 @@ export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
 docker exec -it cndt-bcc-ub bash -c "PID=$PID bash"
 
 export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
-cat $SCRIPT_HOME/trace-filter-match-v7.bt | sed "s/4328/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
+cat $SCRIPT_HOME/trace-filter-match-v7.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
 bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
  */
 
@@ -253,8 +253,8 @@ non-virtual thunk to Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::
 root@cndt-bcc-ub:/# c++filt _ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb
 Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)
 */
-// uprobe:/proc/4328/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
-// /pid == 4328/ 
+// uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
+// /pid == ENVOY_PID/ 
 // { 
 //     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
 //     $activeTcpListenerThis = arg0;//%rdi	used to pass 1st argument to functions -> this
@@ -263,8 +263,8 @@ Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Net
 
 //     $ConnectionSocketPtr = arg1;
 // }
-// uretprobe:/proc/4328/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
-// /pid == 4328/ 
+// uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server17ActiveTcpListener14onAcceptWorkerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS2_14default_deleteIS5_EEEEbb 
+// /pid == ENVOY_PID/ 
 // { 
 //     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
 //     printf("elapsed=%d: tid=%d,comm=%s: ActiveTcpListener::onAcceptWorker ret: retval=%p regDi=%p\n", 
@@ -279,8 +279,8 @@ readelf -s --wide  /proc/$PID/root/usr/local/bin/envoy | egrep 'ActiveTcpSocket'
 
 */
 
-// uprobe:/proc/4328/root/usr/local/bin/envoy:*ActiveTcpSocket*
-// /pid == 4328/ 
+// uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*ActiveTcpSocket*
+// /pid == ENVOY_PID/ 
 // { 
 //     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
 //     $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
@@ -309,8 +309,8 @@ $84 = (Envoy::Network::ConnectionSocketPtr &&) @0x7f5cbbf6fa90:
 
 
 */
-uprobe:/proc/4328/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ERNS0_17ActiveTcpListenerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS4_14default_deleteIS7_EEEEb
-/pid == 4328/ 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ERNS0_17ActiveTcpListenerEONSt3__110unique_ptrINS_7Network16ConnectionSocketENS4_14default_deleteIS7_EEEEb
+/pid == ENVOY_PID/ 
 { 
     // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
     $ActiveTcpSocket = arg0;//%rdi	used to pass 1st argument to functions -> this
@@ -415,8 +415,8 @@ uprobe:/proc/4328/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
 }
 
 // // Network::FilterStatus Filter::onAccept(Network::ListenerFilterCallbacks& cb)
-// uprobe:/proc/4328/root/usr/local/bin/envoy:*Filter*onAccept*
-// /pid == 4328/ 
+// uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*Filter*onAccept*
+// /pid == ENVOY_PID/ 
 // {
 //     printf("\n***** elapsed=%d: tid=%d,comm=%s: *Filter*.onAccept() this=%p\n", 
 //         elapsed, tid, comm, arg0);
@@ -425,8 +425,8 @@ uprobe:/proc/4328/root/usr/local/bin/envoy:_ZN5Envoy6Server15ActiveTcpSocketC2ER
 // }
 
 
-uprobe:/proc/4328/root/usr/local/bin/envoy:*TlsInspector*Filter*done*
-/pid == 4328/ 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*TlsInspector*Filter*done*
+/pid == ENVOY_PID/ 
 {
         printf("\n***** elapsed=%d: tid=%d,comm=%s: *TlsInspector*Filter*.done() this=%p\n", 
         elapsed, tid, comm, arg0);
@@ -467,8 +467,8 @@ uprobe:/proc/4328/root/usr/local/bin/envoy:*TlsInspector*Filter*done*
 
 }
 
-uprobe:/proc/4328/root/usr/local/bin/envoy:*onRead*
-/pid == 4328/ 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*onRead*
+/pid == ENVOY_PID/ 
 {
     printf("\n***** elapsed=%d: tid=%d,comm=%s: %s this=%p\n", elapsed, tid, comm, func,arg0);
     printf("%s\n", ustack());
@@ -477,8 +477,8 @@ uprobe:/proc/4328/root/usr/local/bin/envoy:*onRead*
 /*
 Envoy::Extensions::ListenerFilters::TlsInspector::Filter
 */
-uprobe:/proc/4328/root/usr/local/bin/envoy:*TlsInspector*onRead*
-/pid == 4328/ 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*TlsInspector*onRead*
+/pid == ENVOY_PID/ 
 {
     printf("\n***** elapsed=%d: tid=%d,comm=%s: *TlsInspector*.onRead() this=%p\n", 
         elapsed, tid, comm, arg0);
@@ -559,8 +559,8 @@ uprobe:/proc/4328/root/usr/local/bin/envoy:*TlsInspector*onRead*
 // labile@labile-T30 ➜ labile $ readelf -s --wide  ~/envoy.debug | egrep 'restoreLocalAddress'
 // 1215661: 0000000005812c90    51 FUNC    WEAK   DEFAULT   14 _ZN5Envoy7Network23SocketAddressSetterImpl19restoreLocalAddressERKNSt3__110shared_ptrIKNS
 // SocketAddressSetterImpl::restoreLocalAddress(const Address::InstanceConstSharedPtr& local_address)
-uprobe:/proc/4328/root/usr/local/bin/envoy:*restoreLocalAddress*
-/pid == 4328/ 
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:*restoreLocalAddress*
+/pid == ENVOY_PID/ 
 {
 
     printf("\n***** elapsed=%d: tid=%d,comm=%s: SocketAddressSetterImpl::restoreLocalAddress this=%p\n", 
