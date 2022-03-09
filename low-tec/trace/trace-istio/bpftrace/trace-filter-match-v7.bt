@@ -43,7 +43,7 @@ private:
 class SocketAddressSetter : public SocketAddressProvider;
 class SocketAddressSetterImpl : public SocketAddressSetter
 
- */
+*/
 
 struct virtualobj {
     long long unsigned int vtableAnchorAddr;
