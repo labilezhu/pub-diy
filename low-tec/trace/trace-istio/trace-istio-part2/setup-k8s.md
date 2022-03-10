@@ -30,10 +30,6 @@ spec:
       - containerPort: 8079
         protocol: TCP
         name: grpc   
-    nodeSelector:
-        topology.kubernetes.io/region: us-east-1
-        topology.kubernetes.io/zone: worker005
-        topology.istio.io/subzone: worker005
 
 ---
 
@@ -100,9 +96,6 @@ spec:
       - containerPort: 8079
         protocol: TCP
         name: grpc   
-    nodeSelector:
-        topology.kubernetes.io/zone: worker006
-        topology.istio.io/subzone: worker006
 
 ---
 
