@@ -66,8 +66,8 @@ sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FU
    257  Envoy::Server::ListenerImpl::ListenerImpl(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
    258  Envoy::Server::ListenerImpl::ListenerImpl(Envoy::Server::ListenerImpl&, envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
 
-readelf -s --wide  $ENVOY_BINARY | egrep 'TcpListenerImpl' | grep FUNC | nl | egrep '^\s+255\s+'
-readelf -s --wide  $ENVOY_BINARY | egrep 'TcpListenerImpl' | grep FUNC | nl | egrep '^\s+257\s+'
+sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | nl | egrep '^\s+255\s+'
+sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | nl | egrep '^\s+257\s+'
 
 
 
