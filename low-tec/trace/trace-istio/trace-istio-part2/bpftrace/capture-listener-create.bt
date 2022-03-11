@@ -67,7 +67,10 @@ sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FU
    258  Envoy::Server::ListenerImpl::ListenerImpl(Envoy::Server::ListenerImpl&, envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
 
 sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | nl | egrep '^\s+255\s+'
+   255  227210: 000000000302cb20  4272 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server12ListenerImplC1ERKN5envoy6config8listener2v38ListenerERKNSt3__112basic_stringIcNS9_11char_traitsIcEENS9_9allocatorIcEEEERNS0_19ListenerManagerImplESH_bbmj
 sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | nl | egrep '^\s+257\s+'
+   257  227212: 000000000302cb20  4272 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server12ListenerImplC2ERKN5envoy6config8listener2v38ListenerERKNSt3__112basic_stringIcNS9_11char_traitsIcEENS9_9allocatorIcEEEERNS0_19ListenerManagerImplESH_bbmj
+
 
 
 

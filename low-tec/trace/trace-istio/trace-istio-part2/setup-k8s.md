@@ -30,6 +30,8 @@ spec:
       - containerPort: 8079
         protocol: TCP
         name: grpc   
+    nodeSelector:
+      kubernetes.io/hostname: worknode5
 
 ---
 
@@ -62,6 +64,7 @@ spec:
       port: 8079
       targetPort: 8079
       nodePort: 30456
+
 EOF
 
 ```
@@ -96,6 +99,8 @@ spec:
       - containerPort: 8079
         protocol: TCP
         name: grpc   
+  nodeSelector:
+    kubernetes.io/hostname: worknode5
 
 ---
 
