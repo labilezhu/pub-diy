@@ -70,8 +70,10 @@ tracepoint:syscalls:sys_enter_setsockopt
        $optval_int = *$optval;
        $optlen = args->optlen;
        printf("\n########## setsockopt() ##########\n");
-       printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. stack: %s\n", comm, $level, $fd, $optname, $optval_int, $optlen, ustack);
+       printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
+       @fd2sockopt[$fd] = ($level, $optname, $optval_int);
 }
+
 
 tracepoint:syscalls:sys_enter_bind
 /@watchedpid[pid]/
@@ -92,16 +94,13 @@ tracepoint:syscalls:sys_enter_bind
                      printf("comm:%-16s: bind AF_INET: ip:%-16s port:%-5d fd=%d \n", comm,
                          $bind_ip,
                          $port, $fd);
+                     // @bind2listen[$bind_ip, $port] = "false";
+                     // struct sockaddr_in si;
+                     @fd2bind[$fd] = ($bind_ip, $port);
+                     printf("stack: %s\n", ustack);
               } else { //IPv6
-                     $s6 = (struct sockaddr_in6 *)$sa;
-                     $port = ($s6->sin6_port >> 8) |
-                         (($s6->sin6_port << 8) & 0xff00);
-                     $bind_ip = ntop(AF_INET6, $s6->sin6_addr.in6_u.u6_addr8);
-                     printf("comm:%-16s: bind AF_INET6:%-16s %-5d \n", comm,
-                         $bind_ip,
-                         $port);
+                     printf("not support ipv6\n");
               }
-              printf("stack: %s\n", ustack);
 
               // @bind[comm, args->uservaddr->sa_family,
               //        @fam2str[args->uservaddr->sa_family]] = count();
@@ -117,13 +116,48 @@ tracepoint:syscalls:sys_enter_listen
        $fd = args->fd;
        $backlog = args->backlog;
 
-       printf("comm:%-16s: listen() fd=%d \n", comm, $fd);
+       @fd2listen[$fd] = 1;
+       $bind = @fd2bind[$fd];
+       if( $bind.1 == 0 ) {
+              $old_fd = @dup_fd_new2old[$fd];
+              if( $old_fd ) {
+                     printf("comm:%-16s: listen() on an dupliated old_fd=%d \n", comm, $old_fd);
+                     $bind = @fd2bind[$old_fd];
+              }
+       }
+       printf("comm:%-16s: listen() fd=%d, ip:%-16s, port:%-5d \n", comm, $fd, $bind.0, $bind.1);
        printf("stack: %s\n", ustack);
 }
+
+tracepoint:syscalls:sys_enter_dup
+/@watchedpid[pid]/
+{
+       $fildes = args->fildes;
+       @duping_fd_cache[tid]= $fildes;
+}
+
+
+
+tracepoint:syscalls:sys_exit_dup
+/@watchedpid[pid] && @duping_fd_cache[tid]/
+{
+       $duping_fd = @duping_fd_cache[tid];
+       delete(@duping_fd_cache[tid]);
+
+       $new_fd = args->ret;
+       @dup_fd_old2new[$duping_fd]=$new_fd;
+       @dup_fd_new2old[$new_fd]=$duping_fd;
+
+       printf("\n########## sys_enter_dup() ##########\n");
+       printf("comm:%-16s: duping_fd=%d, new_fd=%d \n", comm, $duping_fd, $new_fd);
+       printf("stack: %s\n", ustack);
+}
+
 
 END
 {
        // clear(@sockaddr);
        clear(@fam2str);
        clear(@watchedpid);
+       clear(@dup_fd_old2new);
 }
