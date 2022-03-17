@@ -1,0 +1,99 @@
+#!usr/bin/bpftrace
+
+
+/**
+
+export SCRIPT_HOME=`pwd`
+export bpftrace_image=cndt-bcc-ub
+
+docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
+    --pid host \
+    --net host \
+    -e SCRIPT_HOME=$SCRIPT_HOME \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /sys:/sys:rw \
+    -v /usr/src:/usr/src:rw \
+    -v /lib/modules:/lib/modules:ro \
+    -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
+    $bpftrace_image \
+    bpftrace  ${SCRIPT_HOME}/trace-envoy-socket-listen.bt
+
+
+ */
+
+
+#include <linux/in.h>
+#include <linux/in6.h>
+
+BEGIN
+{
+       @watchedpid[$1] = $1;
+}
+
+
+/*
+cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_accept4/format
+	field:int fd;	offset:16;	size:8;	signed:0;
+	field:struct sockaddr * upeer_sockaddr;	offset:24;	size:8;	signed:0;
+	field:int * upeer_addrlen;	offset:32;	size:8;	signed:0;
+*/
+tracepoint:syscalls:sys_enter_accept4
+/@watchedpid[pid]/
+{
+       @sockaddr[tid] = args->upeer_sockaddr;
+}
+
+
+//tracepoint:syscalls:sys_exit_accept,
+tracepoint:syscalls:sys_exit_accept4
+/@watchedpid[pid]/
+{
+       if( @sockaddr[tid] != 0 ) {
+              $sa = (struct sockaddr *)@sockaddr[tid];
+              if ($sa->sa_family == AF_INET || $sa->sa_family == AF_INET6) {
+                     printf("\n########## exit accept4() ##########\n");
+
+                     printf("accept4: pid:%-6d comm:%-16s family:%-3d ", pid, comm, $sa->sa_family);
+                     $error = args->ret;
+
+                     if ($sa->sa_family == AF_INET) { //IPv4
+                            $s = (struct sockaddr_in *)@sockaddr[tid];
+                            $port = ($s->sin_port >> 8) |
+                            (($s->sin_port << 8) & 0xff00);
+                            printf("peerIP:%-16s peerPort:%-5d fd:%d\n",
+                            ntop(AF_INET, $s->sin_addr.s_addr),
+                            $port, $error);
+                            printf("stack: %s\n", ustack);
+                     } else { //IPv6
+                            printf("not support IPv6.\n");
+                     }
+              }
+
+              delete(@sockaddr[tid]);
+       }
+}
+
+
+tracepoint:syscalls:sys_enter_setsockopt
+/@watchedpid[pid]/
+{
+       // socket opts: https://elixir.bootlin.com/linux/v5.16.3/source/include/uapi/linux/tcp.h#L92     
+       $level = args->level;
+       $fd = args->fd;
+       $optname = args->optname;
+       $optval = args->optval;
+       $optval_int = *$optval;
+       $optlen = args->optlen;
+       printf("\n########## setsockopt() ##########\n");
+       printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
+       @fd2sockopt[$fd] = ($level, $optname, $optval_int);
+}
+
+
+
+
+END
+{
+       // clear(@watchedpid);
+       // clear(@dup_fd_old2new);
+}
