@@ -9,6 +9,8 @@ apt-get -y install bison build-essential cmake flex git libedit-dev \
 
 apt install -y vim curl iproute2 netcat tcpdump
 
+apt-get -y install gettext-base
+
 ## 
 mkdir /opensource
 pushd /opensource

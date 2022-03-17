@@ -12,16 +12,15 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
     --pid host \
     --net host \
     -e SCRIPT_HOME=$SCRIPT_HOME \
-    -e PID=$PID \
-    -e ENVOY_PID=$PID \
-    -e BT=trace-envoy-accept-flow.bt \
     -v /etc/localtime:/etc/localtime:ro \
     -v /sys:/sys:rw \
     -v /usr/src:/usr/src:rw \
     -v /lib/modules:/lib/modules:ro \
     -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
     $bpftrace_image \
-    ${SCRIPT_HOME}/warp-bt.sh $PID
+    bpftrace  ${SCRIPT_HOME}/trace-envoy-accept-flow.bt $PID
+
+
  */
 
 
@@ -130,15 +129,6 @@ tracepoint:syscalls:sys_enter_setsockopt
               @fd2sockopt[$fd, $level, $optname, $optval_int] = 1;
        }
 
-}
-
-/*
-readelf -s --wide  ~/envoy.mybuild | egrep 'FileEventImpl.*assignEvents' 
- 84898: 0000000003318770   106 FUNC    LOCAL  DEFAULT   14 _ZZN5Envoy5Event13FileEventImpl12assignEventsEjP10event_baseEN3$_18__invokeEisPv
-*/
-uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZZN5Envoy5Event13FileEventImpl12assignEventsEjP10event_baseEN3
-/pid == $1/ 
-{ 
 }
 
 
