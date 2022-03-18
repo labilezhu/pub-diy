@@ -98,6 +98,8 @@ tracepoint:syscalls:sys_exit_accept4
 	@fd2sockpair[$fd]=@sockpair[tid];
 	delete(@sockpair[tid]);
 	delete(@sockpair_exist[tid]);
+
+       @watchedWakeRound[tid]=tid;
 }
 
 //cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
@@ -137,6 +139,64 @@ tracepoint:syscalls:sys_enter_setsockopt
 
 }
 
+
+
+
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_wait/format
+/*
+The end of wakeRound/runnableRound
+ */
+tracepoint:syscalls:sys_enter_epoll_wait
+/pid==$1/
+{
+       // printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_wait\n", elapsed, tid, comm);
+
+       // printf("epfd: 0x%08lx, events: 0x%08lx, maxevents: 0x%08lx, timeout: 0x%08lx \n", 
+       //        ((args->epfd)), ((args->events)), ((args->maxevents)), ((args->timeout)) );
+
+
+       if( @watchedWakeRound[tid] ) {
+              $runnableStartTime=@tid2Waketime[tid];
+              if( $runnableStartTime ) {
+                     $runableDuaration = elapsed - $runnableStartTime;
+                     printf("\n******* WAKE-ROUND:END Summary *******\n");
+                     printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_wait, runableDuaration=%d, tid2epollNrFdReady=%d\n", 
+                            elapsed, tid, comm, $runableDuaration, @tid2epollNrFdReady[tid]);
+                     $tid_last_epoll_wait_args = @last_epoll_wait_args[tid];
+                     if( $tid_last_epoll_wait_args.0  ) {
+                            printf("*** last_epoll_wait_args: epfd=%d, events=%d, maxevents=%d, timeout=%d \n", 
+                                   $tid_last_epoll_wait_args.0, $tid_last_epoll_wait_args.1, $tid_last_epoll_wait_args.2, $tid_last_epoll_wait_args.3);
+                     }
+                     printf("***************************\n\n");
+              }
+       }
+
+       delete(@tid2Waketime[tid]);
+       delete(@watchedWakeRound[tid]);
+       delete(@tid2epollNrFdReady[tid]);
+
+       @last_epoll_wait_args[tid]=(args->epfd, args->events, args->maxevents, args->timeout);
+}
+
+
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_epoll_wait/format
+/*
+The start of wakeRound/runnableRound
+ */
+tracepoint:syscalls:sys_exit_epoll_wait
+/pid==$1/
+{
+       // printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_wait\n", elapsed, tid, comm);
+
+       // printf("epfd: 0x%08lx, events: 0x%08lx, maxevents: 0x%08lx, timeout: 0x%08lx \n", 
+       //        ((args->epfd)), ((args->events)), ((args->maxevents)), ((args->timeout)) );
+
+       @tid2Waketime[tid]=elapsed;
+       @tid2epollNrFdReady[tid]=args->ret;
+}
+
+
+
 /*
 export ENVOY_BINARY="$HOME/envoy.mybuild"
 readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'FileEventImpl::FileEventImpl'
@@ -146,12 +206,12 @@ readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | awk 'NF>1
 readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | nl | egrep '^\s+(10)|(15)\s+'
     15  241382: 00000000033180f0  1136 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
 */
-uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
-/pid == $1/ 
-{
-       printf("\n***** elapsed=%d: tid=%d,comm=%s: FileEventImpl::FileEventImpl() this=%p\n", elapsed, tid, comm, arg0);
-       printf("fd=%d, FileTriggerType=%d, events=0x%x\n", arg2, arg4, arg5);
-}
+// uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
+// /pid == $1/ 
+// {
+//        printf("\n***** elapsed=%d: tid=%d,comm=%s: FileEventImpl::FileEventImpl() this=%p\n", elapsed, tid, comm, arg0);
+//        printf("fd=%d, FileTriggerType=%d, events=0x%x\n", arg2, arg4, arg5);
+// }
 
 
 /*
@@ -181,7 +241,9 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
        if( @fd2sockpair[$fd].0 ) {
               printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()\n", elapsed, tid, comm);
               printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, arg1);
+              printf("%s\n", kstack);
               @fdFired[tid]=1;
+              @watchedWakeRound[tid]=tid;
        }
 }
 
@@ -191,6 +253,9 @@ uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvent
        printf("\n***** elapsed=%d: tid=%d,comm=%s: END:EventFired\n", elapsed, tid, comm);
        delete(@fdFired[tid]);
 }
+
+
+
 
 
 END

@@ -19,6 +19,9 @@ popd
 
 ## make
 
+update-alternatives --install /usr/bin/python python /usr/bin/python2.7 1
+update-alternatives --install /usr/bin/python python /usr/bin/python3.6 2
+
 cd /opensource
 
 git clone https://github.com/iovisor/bcc.git
@@ -38,5 +41,6 @@ make install
 make clean
 popd
 make clean
+
 
 
