@@ -1,9 +1,13 @@
 #!/bin/bash
 
-set -xe
+set -e
 
-envsubst '$(env|egrep "^[A-Z]")' < $SCRIPT_HOME/$BT  > /tmp/gen.bt
+IMPORT_ENV=$(grep 'IMPORT-ENV:' $SCRIPT_HOME/$BT | awk '{print $2}')
+# echo "IMPORT_ENV=$IMPORT_ENV"
+# echo "ENVOY_PID=$ENVOY_PID"
 
-nl /tmp/gen.bt
+envsubst $IMPORT_ENV < $SCRIPT_HOME/$BT  > /tmp/gen.bt
+
+nl -ba /tmp/gen.bt
 
 bpftrace /tmp/gen.bt $@

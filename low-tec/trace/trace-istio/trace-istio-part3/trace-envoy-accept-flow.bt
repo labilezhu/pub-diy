@@ -1,5 +1,8 @@
 #!usr/bin/bpftrace
-
+/*
+IMPORT-ENV: $ENVOY_PID
+args: $1=ENVOY_PID
+*/
 
 /**
 
@@ -125,20 +128,68 @@ tracepoint:syscalls:sys_enter_setsockopt
               $optval = args->optval;
               $optval_int = *$optval;
               $optlen = args->optlen;
-              printf("\n########## setsockopt() ##########\n");
+              // printf("\n########## setsockopt() ##########\n");
               printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
               @fd2sockopt[$fd, $level, $optname, $optval_int] = 1;
        }
 
+//     printf("%s\n", ustack());
+
 }
 
 /*
-readelf -s --wide  ~/envoy.mybuild | egrep 'FileEventImpl.*assignEvents' 
- 84898: 0000000003318770   106 FUNC    LOCAL  DEFAULT   14 _ZZN5Envoy5Event13FileEventImpl12assignEventsEjP10event_baseEN3$_18__invokeEisPv
+export ENVOY_BINARY="$HOME/envoy.mybuild"
+readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'FileEventImpl::FileEventImpl'
+    10  Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)
+    15  Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)
+
+readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | nl | egrep '^\s+(10)|(15)\s+'
+    15  241382: 00000000033180f0  1136 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
 */
-uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZZN5Envoy5Event13FileEventImpl12assignEventsEjP10event_baseEN3
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
 /pid == $1/ 
-{ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: FileEventImpl::FileEventImpl() this=%p\n", elapsed, tid, comm, arg0);
+       printf("fd=%d, FileTriggerType=%d, events=0x%x\n", arg2, arg4, arg5);
+}
+
+
+/*
+Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int fd, short events, void* fileEventImplThis)  !!!NOT!!: FileEventImpl::assignEvents()
+C++11 Lambda expressions:
+event_assign( &raw_event_, base, fd_, xxx, [](evutil_socket_t, short what, void* arg)-> void {}, this );
+
+event_assign(): https://libevent.org/doc/event_8h.html#a3e49a8172e00ae82959dfe64684eda11
+       event_assign	(	struct event * 	ev,
+              struct event_base * 	base,
+              evutil_socket_t 	fd,
+              short 	events,
+              event_callback_fn 	callback,
+              void * 	callback_arg 
+       )	
+
+       https://libevent.org/doc/event_8h.html#aed2307f3d9b38e07cc10c2607322d758
+       typedef void(* event_callback_fn) (evutil_socket_t, short, void *)
+              fd	An fd or signal
+              events	One or more EV_* flags
+              arg	A user-supplied argument.
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
+/pid == $1/ 
+{
+       $fd = arg0;
+       if( @fd2sockpair[$fd].0 ) {
+              printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()\n", elapsed, tid, comm);
+              printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, arg1);
+              @fdFired[tid]=1;
+       }
+}
+
+uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: END:EventFired\n", elapsed, tid, comm);
+       delete(@fdFired[tid]);
 }
 
 
