@@ -1,0 +1,92 @@
+Attaching 11 probes...
+Tracing Envoy. Hit Ctrl-C to end.
+OS handshaked TCP:
+01:33:04 4283   wrk:worker_0   172.30.207.179                          37994 172.21.206.214                          15006 0/4096
+sys_exit_accept4 fd=41
+
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+ 
+***** elapsed=801111899: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7faddbda2f60
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=801191980: tid=4568,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=638229, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=2052059648, maxevents=32, timeout=100 
+***************************
+
+
+***** elapsed=807563010: tid=4568,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x56367acd7ce0, fd=41, events=0x22
+
+***** elapsed=807706877: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7faddbda34c0
+***** elapsed=807809506: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7faddbda2e30
+comm:wrk:worker_0    : setsockopt: level=6, fd=41, optname=1, optval=1, optlen=4. 
+
+***** elapsed=807905215: tid=4568,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=807919043: tid=4568,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=375865, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=2052059648, maxevents=32, timeout=32 
+***************************
+
+
+***** elapsed=807940486: tid=4568,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x56367acd7ce0, fd=41, events=0x26
+
+***** elapsed=808057851: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7faddbda29e0
+***** elapsed=808065657: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7faddbda29d0
+
+***** elapsed=818174415: tid=4568,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=818211518: tid=4568,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=10275841, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=2052059648, maxevents=32, timeout=24 
+***************************
+
+
+***** elapsed=818234099: tid=4568,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x56367acd7ce0, fd=41, events=0x24
+
+
+***** elapsed=818391234: tid=4568,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=818507528: tid=4568,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=275150, tid2epollNrFdReady=3
+*** last_epoll_wait_args: epfd=10, events=2052059648, maxevents=32, timeout=24 
+***************************
+
+***** elapsed=851139749: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7faddbda24b0
+***** elapsed=851157383: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7faddbda24a0
+
+***** elapsed=863111718: tid=4568,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x56367acd7ce0, fd=41, events=0x24
+
+
+***** elapsed=863236073: tid=4568,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=863246829: tid=4568,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=139869, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=2052059648, maxevents=32, timeout=96 
+***************************
+
+
+***** elapsed=868197289: tid=4568,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x56367acd7ce0, fd=41, events=0x26
+
+***** elapsed=868250599: tid=4568,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7faddbda3180
+sys_enter_close fd=41
+
+***** elapsed=868327956: tid=4568,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=868364259: tid=4568,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=186645, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=2052059648, maxevents=32, timeout=80 
+***************************

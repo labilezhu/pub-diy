@@ -36,6 +36,7 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
 BEGIN
 {
 	printf("Tracing Envoy. Hit Ctrl-C to end.\n");
+       printf("#define EPOLL_CTL_ADD 1\n #define EPOLL_CTL_DEL 2\n #define EPOLL_CTL_MOD 3\n")
 }
 
 kretprobe:inet_csk_accept
@@ -127,6 +128,19 @@ tracepoint:syscalls:sys_enter_setsockopt
 }
 
 
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_ctl/format
+/*
+Add accepted socket fd to epoll
+ */
+tracepoint:syscalls:sys_enter_epoll_ctl
+/pid==$1/
+{
+       $fd=args->fd;
+       if( @fd2sockpair[$fd].0 ) {
+              printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_ctl, epfd=%d, op=%d, fd=%d, epoll_event*=%p\n", 
+                     elapsed, tid, comm, args->epfd, args->op, $fd, args->event);
+       }
+}
 
 
 //cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_wait/format
@@ -136,11 +150,6 @@ The end of wakeRound/runnableRound
 tracepoint:syscalls:sys_enter_epoll_wait
 /pid==$1/
 {
-       // printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_wait\n", elapsed, tid, comm);
-
-       // printf("epfd: 0x%08lx, events: 0x%08lx, maxevents: 0x%08lx, timeout: 0x%08lx \n", 
-       //        ((args->epfd)), ((args->events)), ((args->maxevents)), ((args->timeout)) );
-
 
        if( @watchedWakeRound[tid] ) {
               $runnableStartTime=@tid2Waketime[tid];
@@ -162,6 +171,7 @@ tracepoint:syscalls:sys_enter_epoll_wait
        delete(@watchedWakeRound[tid]);
        delete(@tid2epollNrFdReady[tid]);
 
+       //read in next sys_enter_epoll_wait
        @last_epoll_wait_args[tid]=(args->epfd, args->events, args->maxevents, args->timeout);
 }
 
