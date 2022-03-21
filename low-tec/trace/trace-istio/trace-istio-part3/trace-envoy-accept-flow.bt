@@ -29,12 +29,14 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
 
 
 /*
-1. map readme:
+1. Map Readme:
 
 1.1. range tid map
 - @watchedWakeRound[tid]=tid
        - sys_exit_accept4
 - @fdFired[tid]=1;
+       - uprobe: *FileEventImpl*assignEvents*
+       - uretprobe: *FileEventImpl*assignEvents*
 
 1.2. fd map
 - @fd2sockpair[$fd]=@sockpair[tid]
@@ -82,7 +84,7 @@ kretprobe:inet_csk_accept
 		
 		$lport = $sk->__sk_common.skc_num;
 
-              printf("accept(), port=%d\n", $lport);
+              // printf("accept(), port=%d\n", $lport);
 
               //only watch listen port 15006
 		if( 15006 != $lport ) { 
@@ -124,6 +126,9 @@ tracepoint:syscalls:sys_exit_accept4
 	}
 	printf("sys_exit_accept4 fd=%d\n", $fd);
 	@fd2sockpair[$fd]=@sockpair[tid];
+
+       @fdFired[tid]=1;
+
 	delete(@sockpair[tid]);
 	delete(@sockpair_exist[tid]);
        printf("%s \n", ustack());
@@ -164,7 +169,10 @@ tracepoint:syscalls:sys_enter_epoll_ctl
               printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_ctl, epfd=%d, op=%d, fd=%d, epoll_event*=%p\n", 
                      elapsed, tid, comm, args->epfd, args->op, $fd, args->event);
 
-              // printf("%s\n", ustack);
+              if( args->op == 1 ) { //add watch epoll event
+                     printf("%s\n", ustack(12));
+              }
+              
        }
 }
 
@@ -297,6 +305,37 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnectionSocketImpl*setRequ
        printf("\n***** elapsed=%d: tid=%d,comm=%s: ConnectionSocketImpl::setRequestedApplicationProtocols\n", elapsed, tid, comm);
        // printf("%s", ustack);
 }
+
+
+/*
+void setFilterChainName(absl::string_view filter_chain_name)
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
+/pid == $1 && @fdFired[tid]/ 
+{ 
+/**
+[Assembly 2: Calling convention](https://cs61.seas.harvard.edu/site/2018/Asm2/)
+
+1. A structure argument that fits in a single machine word (64 bits/8 bytes) is passed in a single register.
+   
+    Example: `struct small { char a1, a2; }`
+
+2. A structure that fits in two to four machine words (16–32 bytes) is passed in sequential registers, as if it were multiple arguments.
+   
+    Example: `struct medium { long a1, a2; }`
+*/
+    $filterName = str(reg("si"));
+    $filterNameLength = reg("dx");
+
+    // printf("tid:%d: Got setFilterChainName=%s, lenght=%d\n %s \n", tid, $filterName, $filterNameLength, ustack ); 
+    printf("comm:%s,tid:%d: Got setFilterChainName=%s, lenght=%d\n", comm, tid, $filterName, $filterNameLength ); 
+
+    if( $filterNameLength > 0 ) {
+        printf("%s\n", ustack(3));
+    }
+
+}
+
 
 
 //cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
