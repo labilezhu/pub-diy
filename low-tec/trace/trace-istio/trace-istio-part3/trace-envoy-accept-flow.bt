@@ -28,6 +28,28 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
  */
 
 
+/*
+1. map readme:
+
+1.1. range tid map
+- @watchedWakeRound[tid]=tid
+       - sys_exit_accept4
+- @fdFired[tid]=1;
+
+1.2. fd map
+- @fd2sockpair[$fd]=@sockpair[tid]
+       - sys_exit_accept4
+       - sys_enter_close
+- @fd2sockopt[$fd, $level, $optname, $optval_int] = 1
+       - sys_enter_setsockopt
+
+1.3. temp tid map
+- @sockpair[tid]=($sk->__sk_common.skc_daddr, $dport, $sk->__sk_common.skc_rcv_saddr, $lport);
+- @sockpair_exist[tid]=1
+
+*/
+
+
 #include <linux/in.h>
 #include <linux/in6.h>
 #include <linux/socket.h>
@@ -59,6 +81,8 @@ kretprobe:inet_csk_accept
 		}
 		
 		$lport = $sk->__sk_common.skc_num;
+
+              printf("accept(), port=%d\n", $lport);
 
               //only watch listen port 15006
 		if( 15006 != $lport ) { 
@@ -139,6 +163,8 @@ tracepoint:syscalls:sys_enter_epoll_ctl
        if( @fd2sockpair[$fd].0 ) {
               printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_ctl, epfd=%d, op=%d, fd=%d, epoll_event*=%p\n", 
                      elapsed, tid, comm, args->epfd, args->op, $fd, args->event);
+
+              // printf("%s\n", ustack);
        }
 }
 
@@ -259,6 +285,18 @@ uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvent
        delete(@fdFired[tid]);
 }
 
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*TlsInspector*
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: TlsInspector*, probe=%s\n", elapsed, tid, comm, probe);
+}
+
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnectionSocketImpl*setRequestedApplicationProtocols*
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: ConnectionSocketImpl::setRequestedApplicationProtocols\n", elapsed, tid, comm);
+       // printf("%s", ustack);
+}
 
 
 //cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
@@ -282,4 +320,7 @@ END
 {
        // clear(@watchedpid);
        // clear(@dup_fd_old2new);
+       clear(@last_epoll_wait_args);
+       clear(@tid2Waketime);
+       clear(@tid2epollNrFdReady);
 }
