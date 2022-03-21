@@ -4,7 +4,7 @@ IMPORT-ENV: $ENVOY_PID
 args: $1=ENVOY_PID
 */
 
-/*
+/**
 
 export SCRIPT_HOME=`pwd`
 export bpftrace_image=cndt-bcc-ub
@@ -25,11 +25,11 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
     -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
     $bpftrace_image \
     ${SCRIPT_HOME}/warp-bt.sh $PID
-*/
+ */
 
 
 /*
-1. BPF Map 说明:
+1. Map Readme:
 
 1.1. range tid map
 - @watchedWakeRound[tid]=tid
@@ -51,6 +51,7 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
 
 */
 
+
 #include <linux/in.h>
 #include <linux/in6.h>
 #include <linux/socket.h>
@@ -62,10 +63,8 @@ BEGIN
        printf("#define EPOLL_CTL_ADD 1\n #define EPOLL_CTL_DEL 2\n #define EPOLL_CTL_MOD 3\n")
 }
 
-/*
-获取 accept 连接时的本地和对端地址。并标记本轮 wakeup 需要监控
- */
 kretprobe:inet_csk_accept
+// (comm == "wrk:worker_0" || comm == "wrk:worker_1") && 
 /pid==$1 /
 {
 	$sk = (struct sock *)retval;
@@ -110,12 +109,14 @@ kretprobe:inet_csk_accept
 		@sockpair_exist[tid]=1;
 
               @watchedWakeRound[tid]=tid;
+
+		// printf("%s \n", ustack(6));
+              // printf("%s \n", kstack());
 	}
 }
 
-/**
- * 获取新连接的 FD 。并标记本轮 libevent 回调需要监控
- */
+
+//tracepoint:syscalls:sys_exit_accept,
 tracepoint:syscalls:sys_exit_accept4
 /pid==$1 && @sockpair_exist[tid] /
 {
@@ -133,9 +134,7 @@ tracepoint:syscalls:sys_exit_accept4
        printf("%s \n", ustack());
 }
 
-/**
- * 记录 FD 的 sockopt
- */
+
 tracepoint:syscalls:sys_enter_setsockopt
 /pid==$1/
 {
@@ -152,12 +151,15 @@ tracepoint:syscalls:sys_enter_setsockopt
               printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
               @fd2sockopt[$fd, $level, $optname, $optval_int] = 1;
        }
+
+//     printf("%s\n", ustack());
+
 }
 
-/*
-记录 epoll 监听的 FD
 
-cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_ctl/format
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_ctl/format
+/*
+Add accepted socket fd to epoll
  */
 tracepoint:syscalls:sys_enter_epoll_ctl
 /pid==$1/
@@ -174,9 +176,10 @@ tracepoint:syscalls:sys_enter_epoll_ctl
        }
 }
 
+
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_wait/format
 /*
-结束本轮的 wakeRound/runnableRound，并等待下一轮
-cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_wait/format
+The end of wakeRound/runnableRound
  */
 tracepoint:syscalls:sys_enter_epoll_wait
 /pid==$1/
@@ -206,9 +209,10 @@ tracepoint:syscalls:sys_enter_epoll_wait
        @last_epoll_wait_args[tid]=(args->epfd, args->events, args->maxevents, args->timeout);
 }
 
+
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_epoll_wait/format
 /*
-开始本轮 wakeRound/runnableRound
-cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_epoll_wait/format
+The start of wakeRound/runnableRound
  */
 tracepoint:syscalls:sys_exit_epoll_wait
 /pid==$1/
@@ -222,9 +226,34 @@ tracepoint:syscalls:sys_exit_epoll_wait
        @tid2epollNrFdReady[tid]=args->ret;
 }
 
-/*
-记录本轮 epoll 事件触发的 FD 级回调开始
 
+// uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*TcpListenerImpl*onSocketEvent*
+// /pid == $1 && @watchedWakeRound[tid]/ 
+// {
+//        printf("***** elapsed=%d: tid=%d,comm=%s: *TcpListenerImpl*onSocketEvent*\n", 
+//               elapsed, tid, comm, $runableDuaration, @tid2epollNrFdReady[tid]);
+// }
+
+
+
+/*
+export ENVOY_BINARY="$HOME/envoy.mybuild"
+readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'FileEventImpl::FileEventImpl'
+    10  Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)
+    15  Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)
+
+readelf -s --wide  $ENVOY_BINARY | egrep 'FileEventImpl' | grep FUNC | nl | egrep '^\s+(10)|(15)\s+'
+    15  241382: 00000000033180f0  1136 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
+*/
+// uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy5Event13FileEventImplC2ERNS0_14DispatcherImplEiNSt3__18functionIFvjEEENS0_15FileTriggerTypeEj
+// /pid == $1/ 
+// {
+//        printf("\n***** elapsed=%d: tid=%d,comm=%s: FileEventImpl::FileEventImpl() this=%p\n", elapsed, tid, comm, arg0);
+//        printf("fd=%d, FileTriggerType=%d, events=0x%x\n", arg2, arg4, arg5);
+// }
+
+
+/*
 Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int fd, short events, void* fileEventImplThis)  !!!NOT!!: FileEventImpl::assignEvents()
 C++11 Lambda expressions:
 event_assign( &raw_event_, base, fd_, xxx, [](evutil_socket_t, short what, void* arg)-> void {}, this );
@@ -257,9 +286,6 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
        }
 }
 
-/*
-记录本轮 epoll 事件触发的 FD 级回调结束
-*/
 uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
 /pid == $1 && @fdFired[tid]/ 
 {
@@ -267,18 +293,12 @@ uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvent
        delete(@fdFired[tid]);
 }
 
-/*
-打印 TlsInspector 的所有函数调用
-*/
 uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*TlsInspector*
 /pid == $1 && @fdFired[tid]/ 
 {
        printf("\n***** elapsed=%d: tid=%d,comm=%s: TlsInspector*, probe=%s\n", elapsed, tid, comm, probe);
 }
 
-/*
-打印连接确认协后的函数调用
-*/
 uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnectionSocketImpl*setRequestedApplicationProtocols*
 /pid == $1 && @fdFired[tid]/ 
 {
@@ -286,8 +306,8 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnectionSocketImpl*setRequ
        // printf("%s", ustack);
 }
 
+
 /*
-打印匹配到的 Network Fitler Chain 名字
 void setFilterChainName(absl::string_view filter_chain_name)
 */
 uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
@@ -313,12 +333,12 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14Stream
     if( $filterNameLength > 0 ) {
         printf("%s\n", ustack(3));
     }
+
 }
 
-/*
-清理关闭的 FD 相关的 Map
-cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
-*/
+
+
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
 tracepoint:syscalls:sys_enter_close
 /pid==$1/
 {
@@ -329,11 +349,16 @@ tracepoint:syscalls:sys_enter_close
        if( @fd2sockpair[$fd].0 ) {
               printf("sys_enter_close fd=%d\n", $fd);
        }
+
 	delete(@fd2sockpair[$fd]);
 }
 
+
+
 END
 {
+       // clear(@watchedpid);
+       // clear(@dup_fd_old2new);
        clear(@last_epoll_wait_args);
        clear(@tid2Waketime);
        clear(@tid2epollNrFdReady);
