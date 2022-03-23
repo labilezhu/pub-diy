@@ -1,0 +1,291 @@
+Attaching 195 probes...
+Tracing Envoy. Hit Ctrl-C to end.
+#define EPOLL_CTL_ADD 1
+ #define EPOLL_CTL_DEL 2
+ #define EPOLL_CTL_MOD 3
+OS handshaked TCP:
+14:11:55 3620   wrk:worker_0   172.21.206.225                          60028 172.21.206.227                          15006 0/4096
+sys_exit_accept4 fd=41
+
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+ 
+
+***** elapsed=-1263756902: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector25TlsInspectorConfigFactory36createListenerFilterFactoryFromProtoERKN6google8protobuf7MessageERKNS_10shared_ptrINS2_7Network21ListenerFilterMatcherEEERNS2_6Server13Configuration22ListenerFactoryContextEEUlRNSD_21ListenerFilterManagerEE_NS_9allocatorISO_EEFvSN_EEclESN_
+
+***** elapsed=-1263750760: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__128__invoke_void_return_wrapperIvE6__callIJRZN5Envoy10Extensions15ListenerFilters12TlsInspector25TlsInspectorConfigFactory36createListenerFilterFactoryFromProtoERKN6google8protobuf7MessageERKNS_10shared_ptrINS3_7Network21ListenerFilterMatcherEEERNS3_6Server13Configuration22ListenerFactoryContextEEUlRNSE_21ListenerFilterManagerEE_SO_EEEvDpOT_
+
+***** elapsed=-1263745376: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterC1ENSt3__110shared_ptrINS2_6ConfigEEE
+
+***** elapsed=-1263741770: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterC2ENSt3__110shared_ptrINS2_6ConfigEEE
+
+***** elapsed=-1263712289: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS_7Network23ListenerFilterCallbacksE
+
+***** elapsed=-1263706682: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter6onReadEv
+
+***** elapsed=-1263697888: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNKSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7__cloneEPNS0_6__baseISD_EE
+
+***** elapsed=-1263693587: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNKSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7__cloneEPNS0_6__baseISD_EE
+
+***** elapsed=-1263689630: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNKSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7__cloneEPNS0_6__baseISD_EE
+
+***** elapsed=-1263685441: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNKSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7__cloneEPNS0_6__baseISD_EE
+***** elapsed=-1263678934: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7fb83aa28f60
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+362
+        Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+284
+        Envoy::Network::IoSocketHandleImpl::initializeFileEvent(Envoy::Event::Dispatcher&, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+126
+        Envoy::Extensions::ListenerFilters::TlsInspector::Filter::onAccept(Envoy::Network::ListenerFilterCallbacks&)+512
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+77
+        Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)+163
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+856
+
+
+***** elapsed=-1263661193: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7destroyEv
+
+***** elapsed=-1263656894: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7destroyEv
+
+***** elapsed=-1263652944: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7destroyEv
+
+***** elapsed=-1263649044: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7destroyEv
+
+***** elapsed=-1263610932: tid=4292,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=-1263600597: tid=4292,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=255237, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=945353216, maxevents=32, timeout=100 
+***************************
+
+
+***** elapsed=-1256725073: tid=4292,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d39068540, fd=41, events=0x22
+
+
+***** elapsed=-1256703333: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEEclEOj
+
+***** elapsed=-1256697725: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter6onReadEv
+
+***** elapsed=-1256648220: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter16parseClientHelloEPKvm
+
+***** elapsed=-1256626475: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZZN5Envoy10Extensions15ListenerFilters12TlsInspector6ConfigC1ERNS_5Stats5ScopeEjEN3$_08__invokeEPK22ssl_early_callback_ctx
+
+***** elapsed=-1256620052: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter6onALPNEPKhj
+
+***** elapsed=-1256613769: tid=4292,comm=wrk:worker_0: ConnectionSocketImpl::setRequestedApplicationProtocols
+
+***** elapsed=-1256593066: tid=4292,comm=wrk:worker_0: ConnectionSocketImpl::setRequestedApplicationProtocols
+
+***** elapsed=-1256549230: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZZN5Envoy10Extensions15ListenerFilters12TlsInspector6ConfigC1ERNS_5Stats5ScopeEjEN3$_18__invokeEP6ssl_stPiPv
+
+***** elapsed=-1256543062: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter12onServernameEN4absl11string_viewE
+
+***** elapsed=-1256524042: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter4doneEb
+
+***** elapsed=-1256507636: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS2_7Network23ListenerFilterCallbacksEE3$_2NS_9allocatorISA_EEFvjEE7destroyEv
+***** elapsed=-1256501644: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7fb83aa294c0
+
+***** elapsed=-1256487602: tid=4292,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterD0Ev
+comm:wrk:worker_0,tid:4292: Got setFilterChainName=0.0.0.0_8080, lenght=12
+
+        Envoy::StreamInfo::StreamInfoImpl::setFilterChainName(absl::string_view)+0
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+
+
+***** elapsed=-1256414726: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls22ServerSslSocketFactory21createTransportSocketENSt3__110shared_ptrIKNS_7Network22TransportSocketOptionsEEE
+ortSocketENSt3__110shared_ptrIKNS_7Network22TransportSocketOptionsEEE
+Envoy::Extensions::TransportSockets::Tls::ServerSslSocketFactory::createTransportSocket(std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const>) const
+
+
+***** elapsed=-1256404959: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__111make_uniqueIN5Envoy10Extensions16TransportSockets3Tls9SslSocketEJNS_10shared_ptrINS1_3Ssl13ServerContextEEENS4_12InitialStateEDnNS_8functionIFNS6_INS7_10HandshakerEEENS_10unique_ptrI6ssl_stN4bssl8internal7DeleterISF_EEEEiPNS7_18HandshakeCallbacksEEEEEEENS_11__unique_ifIT_E15__unique_singleEDpOT0_
+
+***** elapsed=-1256398213: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocketC1ENSt3__110shared_ptrINS_3Ssl7ContextEEENS2_12InitialStateERKNS5_IKNS_7Network22TransportSocketOptionsEEENS4_8functionIFNS5_INS6_10HandshakerEEENS4_10unique_ptrI6ssl_stN4bssl8internal7DeleterISK_EEEEiPNS6_18HandshakeCallbacksEEEE
+Envoy::Extensions::TransportSockets::Tls::SslSocket::SslSocket(std::__1::shared_ptr<Envoy::Ssl::Context>, Envoy::Extensions::TransportSockets::Tls::InitialState, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, std::__1::function<std::__1::shared_ptr<Envoy::Ssl::Handshaker> (std::__1::unique_ptr<ssl_st, bssl::internal::Deleter<ssl_st> >, int, Envoy::Ssl::HandshakeCallbacks*)>)
+
+***** elapsed=-1256393906: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocketC2ENSt3__110shared_ptrINS_3Ssl7ContextEEENS2_12InitialStateERKNS5_IKNS_7Network22TransportSocketOptionsEEENS4_8functionIFNS5_INS6_10HandshakerEEENS4_10unique_ptrI6ssl_stN4bssl8internal7DeleterISK_EEEEiPNS6_18HandshakeCallbacksEEEE
+Envoy::Extensions::TransportSockets::Tls::SslSocket::SslSocket(std::__1::shared_ptr<Envoy::Ssl::Context>, Envoy::Extensions::TransportSockets::Tls::InitialState, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, std::__1::function<std::__1::shared_ptr<Envoy::Ssl::Handshaker> (std::__1::unique_ptr<ssl_st, bssl::internal::Deleter<ssl_st> >, int, Envoy::Ssl::HandshakeCallbacks*)>)
+
+***** elapsed=-1256378948: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::ssl() const
+
+***** elapsed=-1256319709: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7fb83aa28e30
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+362
+        Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+284
+        Envoy::Network::IoSocketHandleImpl::initializeFileEvent(Envoy::Event::Dispatcher&, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+126
+        Envoy::Network::ConnectionImpl::ConnectionImpl(Envoy::Event::Dispatcher&, std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&, bool)+1026
+        Envoy::Network::ServerConnectionImpl::ServerConnectionImpl(Envoy::Event::Dispatcher&, std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&, bool)+107
+        Envoy::Event::DispatcherImpl::createServerConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&)+70
+        Envoy::Server::ActiveTcpListener::newConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >)+307
+
+
+***** elapsed=-1256298624: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket27setTransportSocketCallbacksERNS_7Network24TransportSocketCallbacksE
+comm:wrk:worker_0    : setsockopt: level=6, fd=41, optname=1, optval=1, optlen=4. 
+Envoy::Extensions::TransportSockets::Tls::SslSocket::setTransportSocketCallbacks(Envoy::Network::TransportSocketCallbacks&)
+
+
+***** elapsed=-1256232766: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::ssl() const
+
+***** elapsed=-1256191762: tid=4292,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=-1256177442: tid=4292,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=559234, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=945353216, maxevents=32, timeout=16 
+***************************
+
+
+***** elapsed=-1256161902: tid=4292,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d39068540, fd=41, events=0x26
+
+
+***** elapsed=-1256147395: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)
+
+
+***** elapsed=-1241140775: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket6doReadERNS_6Buffer8InstanceE
+Envoy::Extensions::TransportSockets::Tls::SslSocket::doRead(Envoy::Buffer::Instance&)
+
+***** elapsed=-1212265076: tid=4292,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=-1212237174: tid=4292,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=43924377, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=945353216, maxevents=32, timeout=12 
+***************************
+
+
+***** elapsed=-1210999075: tid=4292,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d39068540, fd=41, events=0x26
+
+
+***** elapsed=-1210939073: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)
+
+***** elapsed=-1209066509: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZThn16_N5Envoy10Extensions16TransportSockets3Tls9SslSocket9onSuccessEP6ssl_st
+non-virtual thunk to Envoy::Extensions::TransportSockets::Tls::SslSocket::onSuccess(ssl_st*)
+
+***** elapsed=-1208992747: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZThn16_NK5Envoy10Extensions16TransportSockets3Tls9SslSocket10connectionEv
+non-virtual thunk to Envoy::Extensions::TransportSockets::Tls::SslSocket::connection() const
+
+***** elapsed=-1208983181: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket6doReadERNS_6Buffer8InstanceE
+Envoy::Extensions::TransportSockets::Tls::SslSocket::doRead(Envoy::Buffer::Instance&)
+
+***** elapsed=-1208975334: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket16sslReadIntoSliceERNS_6Buffer8RawSliceE
+Envoy::Extensions::TransportSockets::Tls::SslSocket::sslReadIntoSlice(Envoy::Buffer::RawSlice&)
+
+***** elapsed=-1198213933: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket8protocolEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::protocol() const
+
+***** elapsed=-1198184732: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket8protocolEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::protocol() const
+
+***** elapsed=-1198179232: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket8protocolEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::protocol() const
+
+***** elapsed=-1197952983: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::ssl() const
+
+***** elapsed=-1197878883: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7fb83aa289e0
+***** elapsed=-1197864004: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7fb83aa289d0
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Network::ConnectionImpl::readDisable(bool)+1077
+        Envoy::Http::Http1::ServerConnectionImpl::onMessageCompleteBase()+86
+        Envoy::Http::Http1::ConnectionImpl::onMessageComplete()+637
+        Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#3}::__invoke(http_parser*)+31
+        http_parser_execute+7959
+        Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)+31
+        Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)+52
+
+
+***** elapsed=-1197829514: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+Envoy::Extensions::TransportSockets::Tls::SslSocket::ssl() const
+
+***** elapsed=-1197819168: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1197813673: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1197805788: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1197758536: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1197294066: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1197280447: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1197256322: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNK5Envoy10Extensions16TransportSockets3Tls9SslSocket3sslEv
+
+***** elapsed=-1196460827: tid=4292,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=-1196434794: tid=4292,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=14587903, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=945353216, maxevents=32, timeout=12 
+***************************
+
+
+***** elapsed=-1196410745: tid=4292,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d39068540, fd=41, events=0x24
+
+
+***** elapsed=-1196391916: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)
+
+***** elapsed=-1196384759: tid=4292,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=-1194448796: tid=4292,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=1958280, tid2epollNrFdReady=2
+*** last_epoll_wait_args: epfd=10, events=945353216, maxevents=32, timeout=100 
+***************************
+
+***** elapsed=-1081006790: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=2, fd=41, epoll_event*=0x7fb83aa284b0
+***** elapsed=-1080990716: tid=4292,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=1, fd=41, epoll_event*=0x7fb83aa284a0
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Network::ConnectionImpl::readDisable(bool)+938
+        Envoy::Http::Http1::StreamEncoderImpl::~StreamEncoderImpl()+112
+        non-virtual thunk to Envoy::Http::Http1::ServerConnectionImpl::onEncodeComplete()+54
+        Envoy::Http::Http1::StreamEncoderImpl::endEncode()+166
+        Envoy::Http::Http1::StreamEncoderImpl::encodeData(Envoy::Buffer::Instance&, bool)+340
+        Envoy::Http::ConnectionManagerImpl::ActiveStream::encodeData(Envoy::Buffer::Instance&, bool)+679
+        Envoy::Http::FilterManager::encodeData(Envoy::Http::ActiveStreamEncoderFilter*, Envoy::Buffer::Instance&, bool, Envoy::Http::FilterManager::FilterIterationStartState)+2138
+
+
+***** elapsed=-890298097: tid=4292,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d39068540, fd=41, events=0x24
+
+
+***** elapsed=-890263865: tid=4292,comm=wrk:worker_0: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)
+
+***** elapsed=-890150913: tid=4292,comm=wrk:worker_0: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=-890138303: tid=4292,comm=wrk:worker_0: sys_enter_epoll_wait, runableDuaration=163526, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=10, events=945353216, maxevents=32, timeout=68 
+***************************

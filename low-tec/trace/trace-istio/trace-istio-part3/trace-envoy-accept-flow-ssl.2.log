@@ -1,0 +1,342 @@
+Attaching 102 probes...
+Tracing Envoy. Hit Ctrl-C to end.
+#define EPOLL_CTL_ADD 1
+ #define EPOLL_CTL_DEL 2
+ #define EPOLL_CTL_MOD 3
+OS handshaked TCP:
+15:14:57 3620   wrk:worker_1   172.21.206.225                          45058 172.21.206.227                          15006 0/4096
+sys_exit_accept4 fd=41
+
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+ 
+
+***** elapsed=147470792: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__110__function6__funcIZN5Envoy10Extensions15ListenerFilters12TlsInspector25TlsInspectorConfigFactory36createListenerFilterFactoryFromProtoERKN6google8protobuf7MessageERKNS_10shared_ptrINS2_7Network21ListenerFilterMatcherEEERNS2_6Server13Configuration22ListenerFactoryContextEEUlRNSD_21ListenerFilterManagerEE_NS_9allocatorISO_EEFvSN_EEclESN_
+
+***** elapsed=147484720: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZNSt3__128__invoke_void_return_wrapperIvE6__callIJRZN5Envoy10Extensions15ListenerFilters12TlsInspector25TlsInspectorConfigFactory36createListenerFilterFactoryFromProtoERKN6google8protobuf7MessageERKNS_10shared_ptrINS3_7Network21ListenerFilterMatcherEEERNS3_6Server13Configuration22ListenerFactoryContextEEUlRNSE_21ListenerFilterManagerEE_SO_EEEvDpOT_
+
+***** elapsed=147500145: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterC1ENSt3__110shared_ptrINS2_6ConfigEEE
+
+***** elapsed=147504760: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterC2ENSt3__110shared_ptrINS2_6ConfigEEE
+
+***** elapsed=147533818: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter8onAcceptERNS_7Network23ListenerFilterCallbacksE
+
+***** elapsed=147540369: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter6onReadEv
+
+***** elapsed=147574545: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter16parseClientHelloEPKvm
+
+***** elapsed=147607374: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZZN5Envoy10Extensions15ListenerFilters12TlsInspector6ConfigC1ERNS_5Stats5ScopeEjEN3$_08__invokeEPK22ssl_early_callback_ctx
+
+***** elapsed=147614214: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter6onALPNEPKhj
+
+***** elapsed=147622390: tid=4293,comm=wrk:worker_1: ConnectionSocketImpl::setRequestedApplicationProtocols
+
+***** elapsed=147627205: tid=4293,comm=wrk:worker_1: ConnectionSocketImpl::setRequestedApplicationProtocols
+
+***** elapsed=147638181: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZZN5Envoy10Extensions15ListenerFilters12TlsInspector6ConfigC1ERNS_5Stats5ScopeEjEN3$_18__invokeEP6ssl_stPiPv
+
+***** elapsed=147651670: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter12onServernameEN4absl11string_viewE
+
+***** elapsed=147666674: tid=4293,comm=wrk:worker_1: TlsInspector*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterD0Ev
+comm:wrk:worker_1,tid:4293: Got setFilterChainName=0.0.0.0_8080, lenght=12
+
+        Envoy::StreamInfo::StreamInfoImpl::setFilterChainName(absl::string_view)+0
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+
+
+***** elapsed=147728095: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocketC2ENSt3__110shared_ptrINS_3Ssl7ContextEEENS2_12InitialStateERKNS5_IKNS_7Network22TransportSocketOptionsEEENS4_8functionIFNS5_INS6_10HandshakerEEENS4_10unique_ptrI6ssl_stN4bssl8internal7DeleterISK_EEEEiPNS6_18HandshakeCallbacksEEEE
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::SslSocket(std::__1::shared_ptr<Envoy::Ssl::Context>, Envoy::Extensions::TransportSockets::Tls::InitialState, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, std::__1::function<std::__1::shared_ptr<Envoy::Ssl::Handshaker> (std::__1::unique_ptr<ssl_st, bssl::internal::Deleter<ssl_st> >, int, Envoy::Ssl::HandshakeCallbacks*)>)+0
+        Envoy::Extensions::TransportSockets::Tls::ServerSslSocketFactory::createTransportSocket(std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const>) const+227
+        Envoy::Server::ActiveTcpListener::newConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >)+130
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)+163
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+856
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+
+***** elapsed=147755474: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=1, fd=41, epoll_event*=0x7fb83a227c60
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+362
+        Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+284
+        Envoy::Network::IoSocketHandleImpl::initializeFileEvent(Envoy::Event::Dispatcher&, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)+126
+        Envoy::Network::ConnectionImpl::ConnectionImpl(Envoy::Event::Dispatcher&, std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&, bool)+1026
+        Envoy::Network::ServerConnectionImpl::ServerConnectionImpl(Envoy::Event::Dispatcher&, std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&, bool)+107
+        Envoy::Event::DispatcherImpl::createServerConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&)+70
+        Envoy::Server::ActiveTcpListener::newConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >)+307
+
+
+***** elapsed=147793400: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket27setTransportSocketCallbacksERNS_7Network24TransportSocketCallbacksE
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::setTransportSocketCallbacks(Envoy::Network::TransportSocketCallbacks&)+0
+        Envoy::Network::ServerConnectionImpl::ServerConnectionImpl(Envoy::Event::Dispatcher&, std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&, bool)+107
+        Envoy::Event::DispatcherImpl::createServerConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::Network::TransportSocket, std::__1::default_delete<Envoy::Network::TransportSocket> >&&, Envoy::StreamInfo::StreamInfo&)+70
+        Envoy::Server::ActiveTcpListener::newConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >)+307
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)+163
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+856
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+
+comm:wrk:worker_1    : setsockopt: level=6, fd=41, optname=1, optval=1, optlen=4. 
+
+***** elapsed=148208903: tid=4293,comm=wrk:worker_1: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=148236351: tid=4293,comm=wrk:worker_1: sys_enter_epoll_wait, runableDuaration=23325091, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=100 
+***************************
+
+
+***** elapsed=148262192: tid=4293,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d38f43260, fd=41, events=0x26
+
+
+***** elapsed=148282681: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=160968770: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket6doReadERNS_6Buffer8InstanceE
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doRead(Envoy::Buffer::Instance&)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=161021041: tid=4293,comm=wrk:worker_1: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=161041680: tid=4293,comm=wrk:worker_1: sys_enter_epoll_wait, runableDuaration=12784040, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=48 
+***************************
+
+
+***** elapsed=171508986: tid=4293,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d38f43260, fd=41, events=0x26
+
+
+***** elapsed=171550574: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=172138665: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZThn16_N5Envoy10Extensions16TransportSockets3Tls9SslSocket9onSuccessEP6ssl_st
+
+        non-virtual thunk to Envoy::Extensions::TransportSockets::Tls::SslSocket::onSuccess(ssl_st*)+0
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+56
+        Envoy::Network::ConnectionImpl::onWriteReady()+1876
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+
+
+***** elapsed=172188682: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZThn16_NK5Envoy10Extensions16TransportSockets3Tls9SslSocket10connectionEv
+
+        non-virtual thunk to Envoy::Extensions::TransportSockets::Tls::SslSocket::connection() const+0
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+56
+        Envoy::Network::ConnectionImpl::onWriteReady()+1876
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+
+
+***** elapsed=172201876: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZThn16_NK5Envoy10Extensions16TransportSockets3Tls9SslSocket10connectionEv
+
+        non-virtual thunk to Envoy::Extensions::TransportSockets::Tls::SslSocket::connection() const+0
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+56
+        Envoy::Network::ConnectionImpl::onWriteReady()+1876
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+
+
+***** elapsed=172220715: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket6doReadERNS_6Buffer8InstanceE
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doRead(Envoy::Buffer::Instance&)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=172244600: tid=4293,comm=wrk:worker_1: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=172263717: tid=4293,comm=wrk:worker_1: sys_enter_epoll_wait, runableDuaration=766412, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=20 
+***************************
+
+
+***** elapsed=172663331: tid=4293,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d38f43260, fd=41, events=0x26
+
+
+***** elapsed=172685379: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=172696916: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket6doReadERNS_6Buffer8InstanceE
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doRead(Envoy::Buffer::Instance&)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+***** elapsed=172814884: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=2, fd=41, epoll_event*=0x7fb83a2279e0
+***** elapsed=172826334: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=1, fd=41, epoll_event*=0x7fb83a2279d0
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Network::ConnectionImpl::readDisable(bool)+1077
+        Envoy::Http::Http1::ServerConnectionImpl::onMessageCompleteBase()+86
+        Envoy::Http::Http1::ConnectionImpl::onMessageComplete()+637
+        Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#3}::__invoke(http_parser*)+31
+        http_parser_execute+7959
+        Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)+31
+        Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)+52
+
+
+***** elapsed=173491472: tid=4293,comm=wrk:worker_1: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=173511608: tid=4293,comm=wrk:worker_1: sys_enter_epoll_wait, runableDuaration=853914, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=100 
+***************************
+
+
+***** elapsed=173539089: tid=4293,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d38f43260, fd=41, events=0x24
+
+
+***** elapsed=173576179: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=173593375: tid=4293,comm=wrk:worker_1: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=173660590: tid=4293,comm=wrk:worker_1: sys_enter_epoll_wait, runableDuaration=122907, tid2epollNrFdReady=2
+*** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=100 
+***************************
+
+***** elapsed=186435684: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=2, fd=41, epoll_event*=0x7fb83a2274b0
+***** elapsed=186453170: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=1, fd=41, epoll_event*=0x7fb83a2274a0
+
+        epoll_ctl+14
+        epoll_nochangelist_add+54
+        evmap_io_add_+421
+        event_add_nolock_+603
+        event_add+54
+        Envoy::Network::ConnectionImpl::readDisable(bool)+938
+        Envoy::Http::Http1::StreamEncoderImpl::~StreamEncoderImpl()+112
+        non-virtual thunk to Envoy::Http::Http1::ServerConnectionImpl::onEncodeComplete()+54
+        Envoy::Http::Http1::StreamEncoderImpl::endEncode()+166
+        Envoy::Http::Http1::StreamEncoderImpl::encodeData(Envoy::Buffer::Instance&, bool)+340
+        Envoy::Http::ConnectionManagerImpl::ActiveStream::encodeData(Envoy::Buffer::Instance&, bool)+679
+        Envoy::Http::FilterManager::encodeData(Envoy::Http::ActiveStreamEncoderFilter*, Envoy::Buffer::Instance&, bool, Envoy::Http::FilterManager::FilterIterationStartState)+2138
+
+
+***** elapsed=215925228: tid=4293,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()
+FileEventImpl*=0x563d38f43260, fd=41, events=0x24
+
+
+***** elapsed=215958428: tid=4293,comm=wrk:worker_1: SslSocket*, probe=uprobe:/proc/3620/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+
+        Envoy::Extensions::TransportSockets::Tls::SslSocket::doWrite(Envoy::Buffer::Instance&, bool)+0
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+818
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        0x7fffffffe000
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+***** elapsed=216144123: tid=4293,comm=wrk:worker_1: END:EventFired
+
+******* WAKE-ROUND:END Summary *******
+***** elapsed=216156245: tid=4293,comm=wrk:worker_1: sys_enter_epoll_wait, runableDuaration=236239, tid2epollNrFdReady=1
+*** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=84 
