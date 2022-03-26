@@ -126,7 +126,7 @@ tracepoint:syscalls:sys_exit_accept4
 	printf("sys_exit_accept4 fd=%d\n", $fd);
 	@fd2sockpair[$fd]=@sockpair[tid];
 
-       @fdFired[tid]=1;
+       @fdFired[tid]=$fd;
 
 	delete(@sockpair[tid]);
 	delete(@sockpair_exist[tid]);
@@ -252,7 +252,7 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
               printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()\n", elapsed, tid, comm);
               printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, arg1);
               printf("%s\n", kstack);
-              @fdFired[tid]=1;
+              @fdFired[tid]=$fd;
               @watchedWakeRound[tid]=tid;
        }
 }
@@ -266,6 +266,37 @@ uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvent
        printf("\n***** elapsed=%d: tid=%d,comm=%s: END:EventFired\n", elapsed, tid, comm);
        delete(@fdFired[tid]);
 }
+
+
+tracepoint:syscalls:sys_enter_read,tracepoint:syscalls:sys_enter_readv
+/pid == $1 && @fdFired[tid]==args->fd/ 
+{
+       @watchedIo[tid]=args->fd;
+}
+
+tracepoint:syscalls:sys_exit_read,tracepoint:syscalls:sys_exit_readv
+/pid == $1 && @watchedIo[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_exit_recv*, probe=%s, ret=%d\n", elapsed, tid, comm, probe, args->ret);
+       delete(@watchedIo[tid]);
+       printf("%s\n", ustack(10));
+}
+
+
+tracepoint:syscalls:sys_enter_write,tracepoint:syscalls:sys_enter_writev
+/pid == $1 && @fdFired[tid]==args->fd/ 
+{
+       @watchedIo[tid]=args->fd;
+}
+
+tracepoint:syscalls:sys_exit_write,tracepoint:syscalls:sys_exit_writev
+/pid == $1 && @watchedIo[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_exit_write*, probe=%s, ret=%d\n", elapsed, tid, comm, probe, args->ret);
+       delete(@watchedIo[tid]);
+       printf("%s\n", ustack(10));
+}
+
 
 /*
 打印 TlsInspector 的所有函数调用
