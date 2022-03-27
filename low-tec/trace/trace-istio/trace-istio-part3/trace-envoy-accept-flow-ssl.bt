@@ -48,6 +48,7 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
 1.3. temp tid map
 - @sockpair[tid]=($sk->__sk_common.skc_daddr, $dport, $sk->__sk_common.skc_rcv_saddr, $lport);
 - @sockpair_exist[tid]=1
+- @watchedIo[tid]=fd
 
 */
 
@@ -55,11 +56,32 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
 #include <linux/in6.h>
 #include <linux/socket.h>
 #include <net/sock.h>
+// #include <sys/epoll.h>
+
+// The event argument describes the object linked to the file descriptor fd.  The struct epoll_event is defined as:
+// struct epoll_data_t {
+//     int          fd;
+// };
+
+// struct epoll_event {
+//     //a bit mask composed by ORing together zero or more of the following available event types
+//     uint32_t     events;      /* Epoll events */
+
+//     struct epoll_data_t data;        /* User data variable */
+// };
+
+
 
 BEGIN
 {
 	printf("Tracing Envoy. Hit Ctrl-C to end.\n");
-       printf("#define EPOLL_CTL_ADD 1\n #define EPOLL_CTL_DEL 2\n #define EPOLL_CTL_MOD 3\n")
+       printf("#define EPOLL_CTL_ADD 1\n #define EPOLL_CTL_DEL 2\n #define EPOLL_CTL_MOD 3\n");
+
+       @epoll_ctl_op[1]="EPOLL_CTL_ADD";
+       @epoll_ctl_op[2]="EPOLL_CTL_DEL";
+       @epoll_ctl_op[3]="EPOLL_CTL_MOD";
+
+
 }
 
 /*
@@ -154,6 +176,8 @@ tracepoint:syscalls:sys_enter_setsockopt
        }
 }
 
+
+
 /*
 记录 epoll 监听的 FD
 
@@ -164,11 +188,24 @@ tracepoint:syscalls:sys_enter_epoll_ctl
 {
        $fd=args->fd;
        if( @fd2sockpair[$fd].0 ) {
-              printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_ctl, epfd=%d, op=%d, fd=%d, epoll_event*=%p\n", 
-                     elapsed, tid, comm, args->epfd, args->op, $fd, args->event);
+              $epollEvents = (uint32) (args->event->events);
+              $op = args->op;
 
-              if( args->op == 1 ) { //add watch epoll event
-                     printf("%s\n", ustack(12));
+              printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_ctl, epfd=%d, op=%s, fd=%d, events=0x%x\n", 
+                     elapsed, tid, comm, args->epfd, @epoll_ctl_op[$op], $fd, $epollEvents);
+
+
+              if( $op == 1/*EPOLL_CTL_ADD*/ || $op == 3/*EPOLL_CTL_MOD*/ ) { //add watch epoll event
+                     if( $epollEvents & (uint32)0x001 /*EPOLLIN*/ ) {
+                            printf("EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)\n");
+                     }
+                     if( $epollEvents & (uint32)0x004 /*EPOLLOUT*/ ) {
+                            printf("EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)\n");
+                     }
+                     if( $epollEvents & (1u << 31) /*EPOLLET*/ ) {
+                            printf("EPOLL_CTL_ADD/MOD EdgeTrigger\n");
+                     }
+                     printf("%s\n", ustack(30));
               }
               
        }
@@ -249,8 +286,27 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
 {
        $fd = arg0;
        if( @fd2sockpair[$fd].0 ) {
-              printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents()::Lambda1()\n", elapsed, tid, comm);
-              printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, arg1);
+              $libevent_events = arg1;
+
+              printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()\n", elapsed, tid, comm);
+              printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, $libevent_events);
+
+              if( $libevent_events & (uint16)0x01 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_TIMEOUT\n");
+              }
+              if( $libevent_events & (uint16)0x02 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_READ\n");
+              }
+              if( $libevent_events & (uint16)0x04 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_WRITE\n");
+              }
+              if( $libevent_events & (uint16)0x20 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_ET\n");
+              }
+              if( $libevent_events & (uint16)0x80 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_CLOSED\n");
+              }
+              
               printf("%s\n", kstack);
               @fdFired[tid]=$fd;
               @watchedWakeRound[tid]=tid;
@@ -268,23 +324,23 @@ uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvent
 }
 
 
-tracepoint:syscalls:sys_enter_read,tracepoint:syscalls:sys_enter_readv
-/pid == $1 && @fdFired[tid]==args->fd/ 
+tracepoint:syscalls:sys_enter_read,tracepoint:syscalls:sys_enter_readv,tracepoint:syscalls:sys_enter_recv*
+/pid == $1 && @fd2sockpair[args->fd].0/ 
 {
        @watchedIo[tid]=args->fd;
 }
 
-tracepoint:syscalls:sys_exit_read,tracepoint:syscalls:sys_exit_readv
+tracepoint:syscalls:sys_exit_read,tracepoint:syscalls:sys_exit_readv,tracepoint:syscalls:sys_exit_recv*
 /pid == $1 && @watchedIo[tid]/ 
 {
-       printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_exit_recv*, probe=%s, ret=%d\n", elapsed, tid, comm, probe, args->ret);
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: socket_read, probe=%s, fd=%d, ret=%d\n", elapsed, tid, comm, probe, @watchedIo[tid],args->ret);
        delete(@watchedIo[tid]);
-       printf("%s\n", ustack(10));
+       printf("%s\n", ustack(20));
 }
 
 
 tracepoint:syscalls:sys_enter_write,tracepoint:syscalls:sys_enter_writev
-/pid == $1 && @fdFired[tid]==args->fd/ 
+/pid == $1 && @fd2sockpair[args->fd].0/ 
 {
        @watchedIo[tid]=args->fd;
 }
@@ -292,9 +348,9 @@ tracepoint:syscalls:sys_enter_write,tracepoint:syscalls:sys_enter_writev
 tracepoint:syscalls:sys_exit_write,tracepoint:syscalls:sys_exit_writev
 /pid == $1 && @watchedIo[tid]/ 
 {
-       printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_exit_write*, probe=%s, ret=%d\n", elapsed, tid, comm, probe, args->ret);
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: socket_write, probe=%s, fd=%d, ret=%d\n", elapsed, tid, comm, probe, @watchedIo[tid], args->ret);
        delete(@watchedIo[tid]);
-       printf("%s\n", ustack(10));
+       printf("%s\n", ustack(20));
 }
 
 
