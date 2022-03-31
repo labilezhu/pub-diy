@@ -617,7 +617,8 @@ libevent: EV_ET
 *** last_epoll_wait_args: epfd=14, events=945353600, maxevents=32, timeout=96 
 ***************************
 
-### 在没有 downsteam fd 的回调处理的情况下，envoy 修改了 downstream 的监听要求。推断为 envoy 已经收到完整的 upstream HTTP Response，准备去写 downstream 的 HTTP Response 了。
+### 在没有 downsteam fd 的回调处理的情况下，envoy 修改了 downstream 的监听要求。推断为 envoy 已经收到完整的 upstream HTTP Response（ClientConnectionImpl::onMessageCompleteBase）。
+### 完成了 upstream Response 的 encode（ServerConnectionImpl::onEncodeComplete()）。准备去写 downstream 的 HTTP Response 了。
 ***** elapsed=1047415061: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=EPOLL_CTL_DEL, fd=42, events=0x80002004
 ***** elapsed=1047434533: tid=4293,comm=wrk:worker_1: sys_enter_epoll_ctl, epfd=14, op=EPOLL_CTL_ADD, fd=42, events=0x80000005
 EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)
