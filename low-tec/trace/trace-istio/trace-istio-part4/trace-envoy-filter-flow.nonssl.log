@@ -765,6 +765,7 @@ EPOLL_CTL_ADD/MOD EdgeTrigger
         Envoy::ConnectionPool::ConnPoolImplBase::newStream(Envoy::ConnectionPool::AttachContext&)+2001
         non-virtual thunk to Envoy::Http::HttpConnPoolImplBase::newStream(Envoy::Http::ResponseDecoder&, Envoy::Http::ConnectionPool::Callbacks&)+47
         Envoy::Extensions::Upstreams::Http::Http::HttpConnPool::newStream(Envoy::Router::GenericConnectionPoolCallbacks*)+70
+        ##补： UpstreamRequest::encodeHeaders(bool end_stream)
         Envoy::Router::Filter::decodeHeaders(Envoy::Http::RequestHeaderMap&, bool)+14120
         Envoy::Http::FilterManager::decodeHeaders(Envoy::Http::ActiveStreamDecoderFilter*, Envoy::Http::RequestHeaderMap&, bool)+334
         Envoy::Http::ConnectionManagerImpl::ActiveStream::decodeHeaders(std::__1::unique_ptr<Envoy::Http::RequestHeaderMap, std::__1::default_delete<Envoy::Http::RequestHeaderMap> >&&, bool)+6139
