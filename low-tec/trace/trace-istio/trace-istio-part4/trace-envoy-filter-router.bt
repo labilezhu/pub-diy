@@ -23,7 +23,7 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
     -e SCRIPT_HOME=$SCRIPT_HOME \
     -e PID=$PID \
     -e ENVOY_PID=$PID \
-    -e BT=trace-envoy-filter-router \
+    -e BT=trace-envoy-filter-router.bt \
     -v /etc/localtime:/etc/localtime:ro \
     -v /sys:/sys:rw \
     -v /usr/src:/usr/src:rw \
@@ -40,9 +40,14 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
 1.1. range tid map
 - @watchedWakeRound[tid]=tid
        - sys_exit_accept4
+       - FileEventImpl*assignEvents*
 - @fdFired[tid]=$fd;
        - uprobe: *FileEventImpl*assignEvents*
        - uretprobe: *FileEventImpl*assignEvents*
+- @downFD2upFD[$downFD] = $fd; //downstream fd to upstream fd
+       - sys_enter_epoll_ctl
+- @upFD[$fd] = $fd; //upstream fd
+       - sys_enter_epoll_ctl
 
 1.2. fd map
 - @fd2sockpair[$fd]=@sockpair[tid]
@@ -175,7 +180,7 @@ tracepoint:syscalls:sys_enter_setsockopt
        $level = args->level;
        $fd = args->fd;
 
-       if( @fd2sockpair[$fd].0 ) {
+       if( @fd2sockpair[$fd].0 || @upFD[$fd] ) {
               $optname = args->optname;
               $optval = args->optval;
               $optval_int = *$optval;
@@ -219,7 +224,11 @@ tracepoint:syscalls:sys_enter_epoll_ctl
               }
               
        } else {
-              if( @fdFired[tid] ) {//in downstream fd event callback, register upstream event trigger
+              $downFD = @fdFired[tid];
+              if( $downFD ) {//in downstream fd event callback, register upstream event trigger
+                     @upFD[$fd] = $fd;
+                     @downFD2upFD[$downFD] = $fd;
+
                      printf("***** elapsed=%d: tid=%d,comm=%s: register upstream event trigger:sys_enter_epoll_ctl, epfd=%d, op=%s, fd=%d, events=0x%x\n", 
                             elapsed, tid, comm, args->epfd, @epoll_ctl_op[$op], $fd, $epollEvents);
 
@@ -314,7 +323,7 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
 /pid == $1/ 
 {
        $fd = arg0;
-       if( @fd2sockpair[$fd].0 ) {
+       if( @fd2sockpair[$fd].0 || @upFD[$fd] ) {
               $libevent_events = arg1;
 
               printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()\n", elapsed, tid, comm);
@@ -346,7 +355,7 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
 记录本轮 epoll 事件触发的 FD 级回调结束
 */
 uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
-/pid == $1 && @fdFired[tid]/ 
+/pid == $1 && @fdFired[tid] / 
 {
        printf("\n***** elapsed=%d: tid=%d,comm=%s: END:EventFired\n", elapsed, tid, comm);
        delete(@fdFired[tid]);
@@ -354,7 +363,7 @@ uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvent
 
 
 tracepoint:syscalls:sys_enter_read,tracepoint:syscalls:sys_enter_readv,tracepoint:syscalls:sys_enter_recv*
-/pid == $1 && @fd2sockpair[args->fd].0/ 
+/pid == $1 && (@fd2sockpair[args->fd].0 || @upFD[args->fd] ) / 
 {
        @watchedIo[tid]=args->fd;
 }
@@ -369,7 +378,7 @@ tracepoint:syscalls:sys_exit_read,tracepoint:syscalls:sys_exit_readv,tracepoint:
 
 
 tracepoint:syscalls:sys_enter_write,tracepoint:syscalls:sys_enter_writev
-/pid == $1 && @fd2sockpair[args->fd].0/ 
+/pid == $1 && ( @fd2sockpair[args->fd].0 || @upFD[args->fd] ) / 
 {
        @watchedIo[tid]=args->fd;
 }
@@ -492,6 +501,10 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14Stream
 uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*onRead*,uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*onContinueReading*,uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*addReadFilter*
 /pid == $1 && @fdFired[tid]/ 
 { 
+       if( @upFD[@fdFired[tid]] ) {
+              return;
+       }
+
        $fd = @fdFired[tid];
        @filterManagerImpl2fd[arg0] = $fd;
        if( @fd2filterManagerImpl[$fd] ) {
@@ -526,8 +539,14 @@ tracepoint:syscalls:sys_enter_close
 	if( $fd < 0 ) {
 		return;
 	}
+
+       delete(@upFD[$fd]);
+
        if( @fd2sockpair[$fd].0 ) {
               printf("sys_enter_close fd=%d\n", $fd);
+       }
+       else {
+              return;
        }
 	delete(@fd2sockpair[$fd]);
 
@@ -556,7 +575,8 @@ tracepoint:syscalls:sys_enter_close
               delete(@filterManagerImpl2fd[$filterManagerImpl]);
        }
 
-
+       delete(@upFD[@downFD2upFD[$fd]]);
+       delete(@downFD2upFD[$fd]);
 }
 
 END
