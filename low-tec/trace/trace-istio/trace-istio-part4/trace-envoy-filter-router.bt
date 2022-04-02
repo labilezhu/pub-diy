@@ -23,7 +23,7 @@ docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
     -e SCRIPT_HOME=$SCRIPT_HOME \
     -e PID=$PID \
     -e ENVOY_PID=$PID \
-    -e BT=trace-envoy-filter-flow.bt \
+    -e BT=trace-envoy-filter-router \
     -v /etc/localtime:/etc/localtime:ro \
     -v /sys:/sys:rw \
     -v /usr/src:/usr/src:rw \
