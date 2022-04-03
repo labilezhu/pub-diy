@@ -498,7 +498,7 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14Stream
     }
 }
 
-uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*onRead*,uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*onContinueReading*,uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*addReadFilter*
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*add*Filter*,uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*FilterManagerImpl*
 /pid == $1 && @fdFired[tid]/ 
 { 
        if( @upFD[@fdFired[tid]] ) {
@@ -512,20 +512,39 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*onRead*,up
        } else {
               @fd2filterManagerImpl[$fd] = arg0;
        }
-       printf("comm:%s,tid:%d: FilterManagerImpl::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd); 
+       printf("comm:%s,tid:%d: FilterManagerImpl.add*Filter|FilterManagerImpl::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd);
+       printf("%s\n", ustack(40));
 }
 
-uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*Write*
-/pid == $1 && @filterManagerImpl2fd[arg0]/ 
-{ 
-       $fd = @filterManagerImpl2fd[arg0];
-       printf("comm:%s,tid:%d: FilterManagerImpl::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd); 
-}
-
-uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*attachStreamToClient*
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*on*
 /pid == $1 && @fdFired[tid]/ 
 { 
-       printf("comm:%s,tid:%d: attachStreamToClient: %s \n", comm, tid, probe); 
+       if( @upFD[@fdFired[tid]] ) {
+              return;
+       }
+
+       $fd = @fdFired[tid];
+       @filterManagerImpl2fd[arg0] = $fd;
+       if( @fd2filterManagerImpl[$fd] ) {
+              @fd2filterManagerImpl2[$fd] = arg0;
+       } else {
+              @fd2filterManagerImpl[$fd] = arg0;
+       }
+       printf("comm:%s,tid:%d: FilterManagerImpl.on*::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd); 
+}
+
+// uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*Write*
+// /pid == $1 && @filterManagerImpl2fd[arg0]/ 
+// { 
+//        $fd = @filterManagerImpl2fd[arg0];
+//        printf("comm:%s,tid:%d: FilterManagerImpl::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd); 
+// }
+
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnPoolImplBase*attachStreamToClient*
+/pid == $1 && @fdFired[tid]/ 
+{ 
+       printf("comm:%s,tid:%d: ConnPoolImplBase*attachStreamToClient: %s \n", comm, tid, probe); 
+       printf("%s\n", ustack(40));
 }
 
 /*
