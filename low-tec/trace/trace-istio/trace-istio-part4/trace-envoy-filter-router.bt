@@ -572,7 +572,7 @@ kprobe:tcp_connect
               // Destination port is big endian, it must be flipped
               $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
 
-              // only watch listen port 15006
+              // only watch listen port 8080
               if (8080 != $dport)
               {
                      return;
