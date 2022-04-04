@@ -547,6 +547,46 @@ uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnPoolImplBase*attachStrea
        printf("%s\n", ustack(40));
 }
 
+
+kprobe:tcp_connect
+/pid == $1/
+{
+       $sk = ((struct sock *)arg0);
+       $inet_family = $sk->__sk_common.skc_family;
+
+       if ($inet_family == AF_INET || $inet_family == AF_INET6)
+       {
+              if ($inet_family == AF_INET)
+              {
+                     $daddr = ntop($sk->__sk_common.skc_daddr);
+                     $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+              }
+              else
+              {
+                     $daddr = ntop($sk->__sk_common.skc_v6_daddr.in6_u.u6_addr8);
+                     $saddr = ntop($sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr8);
+              }
+              $lport = $sk->__sk_common.skc_num;
+              $dport = $sk->__sk_common.skc_dport;
+
+              // Destination port is big endian, it must be flipped
+              $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+              // only watch listen port 15006
+              if (8080 != $dport)
+              {
+                     return;
+              }
+
+              printf("connecting to 8080:\n");
+              time("%H:%M:%S ");
+              printf("%-8d %-16s ", pid, comm);
+              printf("%-39s %-6d %-39s %-6d\n", $saddr, $lport, $daddr, $dport);
+              printf("%s\n", ustack(40));
+       }
+}
+
+
 /*
 清理关闭的 FD 相关的 Map
 cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
