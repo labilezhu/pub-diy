@@ -1,3 +1,5 @@
+#### Downstream Read Request: accept downstream socket， 可见 downstream socket 的 FD=41
+
 OS handshaked TCP:
 01:22:11 4215   wrk:worker_0   172.30.207.129                          58708 172.21.206.232                          15006 0/4096
 sys_exit_accept4 fd=41
@@ -33,6 +35,7 @@ sys_exit_accept4 fd=41
 
 ***** elapsed=1631085065: tid=5327,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6Filter16parseClientHelloEPKvm
 
+#### Downstream Read Request: 选择 network filter chain
 ***** elapsed=1631145371: tid=5327,comm=wrk:worker_0: TlsInspector*, probe=uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy10Extensions15ListenerFilters12TlsInspector6FilterD0Ev
 comm:wrk:worker_0,tid:5327: Got setFilterChainName=0.0.0.0_8080, lenght=12
 
@@ -40,6 +43,7 @@ comm:wrk:worker_0,tid:5327: Got setFilterChainName=0.0.0.0_8080, lenght=12
         Envoy::Server::ActiveTcpSocket::newConnection()+377
         Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
 
+#### Downstream Read Request: 监听 upstream FD 事件
 ***** elapsed=1631199672: tid=5327,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=EPOLL_CTL_ADD, fd=41, events=0x80000005
 EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)
 EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)
@@ -160,7 +164,7 @@ comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/lo
 *** last_epoll_wait_args: epfd=10, events=-1741049344, maxevents=32, timeout=100 
 ***************************
 
-
+#### Downstream Read Request: 读 HTTP Request
 ***** elapsed=1631475016: tid=5327,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
 FileEventImpl*=0x559f98e26ee0, fd=41, events=0x26
 libevent: EV_READ
@@ -224,6 +228,8 @@ comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/lo
 comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy7Network17FilterManagerImpl16ActiveReadFilter10connectionEv,FilterManagerImpl.this=0x559f98996380,fd=41 
 comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy7Network17FilterManagerImpl16ActiveReadFilter10connectionEv,FilterManagerImpl.this=0x559f98996380,fd=41 
 ***** elapsed=1631671079: tid=5327,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=EPOLL_CTL_DEL, fd=41, events=0x80000005
+
+#### Downstream Read Request: downstream 的 HTTP Reuest 已经完全读取（onMessageComplete()）。停止监听 downstream 的 ReadReady 事件
 ***** elapsed=1631678652: tid=5327,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=EPOLL_CTL_ADD, fd=41, events=0x80002004
 EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)
 EPOLL_CTL_ADD/MOD EdgeTrigger
@@ -257,6 +263,8 @@ EPOLL_CTL_ADD/MOD EdgeTrigger
 comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy7Network17FilterManagerImpl16ActiveReadFilter10connectionEv,FilterManagerImpl.this=0x559f98996380,fd=41 
 comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy7Network17FilterManagerImpl16ActiveReadFilter10connectionEv,FilterManagerImpl.this=0x559f98996380,fd=41 
 comm:wrk:worker_0,tid:5327: FilterManagerImpl.on*::uprobe:/proc/4215/root/usr/local/bin/envoy:_ZN5Envoy7Network17FilterManagerImpl16ActiveReadFilter10connectionEv,FilterManagerImpl.this=0x559f98996380,fd=41 
+
+#### Downstream Read Request: 监听新建立的 upstream socket 的 FD=44 ， 这里 socket 还处于未连接状态。现在监听 upstream socket 的 所有事件。以备后面异步连接成功时收到回调
 ***** elapsed=1632388633: tid=5327,comm=wrk:worker_0: register upstream event trigger:sys_enter_epoll_ctl, epfd=10, op=EPOLL_CTL_ADD, fd=44, events=0x80000005
 EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)
 EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)
@@ -347,6 +355,8 @@ comm:wrk:worker_0,tid:5327: FilterManagerImpl.add*Filter|FilterManagerImpl::upro
         start_thread+217
 
 comm:wrk:worker_0    : setsockopt: level=6, fd=44, optname=1, optval=1, optlen=4. 
+
+#### Downstream Read Request: 发现异步 upstream 连接
 connecting to 8080:
 01:23:36 4215     wrk:worker_0     127.0.0.6                               36383  172.21.206.232                          8080  
 
@@ -410,6 +420,7 @@ libevent: EV_ET
 
 ***** elapsed=1632654517: tid=5327,comm=wrk:worker_0: END:EventFired
 
+#### Upstream Write Request: 异步 upstream 连接成功，回调。
 ***** elapsed=1632659321: tid=5327,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
 FileEventImpl*=0x559f98eb6540, fd=44, events=0x24
 libevent: EV_WRITE
@@ -431,7 +442,7 @@ comm:wrk:worker_0,tid:5327: ConnPoolImplBase*attachStreamToClient: uprobe:/proc/
         Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
         start_thread+217
 
-
+#### Upstream Write Request: 向 upstream socket 写 HTTP Request
 ***** elapsed=1632741863: tid=5327,comm=wrk:worker_0: socket_write, probe=tracepoint:syscalls:sys_exit_writev, fd=44, ret=262
 
         writev+77
@@ -458,14 +469,14 @@ comm:wrk:worker_0,tid:5327: ConnPoolImplBase*attachStreamToClient: uprobe:/proc/
 *** last_epoll_wait_args: epfd=10, events=-1741049344, maxevents=32, timeout=60 
 ***************************
 
-
+#### Upstream Read Response: upstream socket ReadReady 回调
 ***** elapsed=1637821708: tid=5327,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
 FileEventImpl*=0x559f98eb6540, fd=44, events=0x26
 libevent: EV_READ
 libevent: EV_WRITE
 libevent: EV_ET
 
-
+#### Upstream Read Response: 读 upstream HTTP Response
 ***** elapsed=1637898855: tid=5327,comm=wrk:worker_0: socket_read, probe=tracepoint:syscalls:sys_exit_readv, fd=44, ret=4511
 
         readv+77
@@ -500,6 +511,8 @@ libevent: EV_ET
         start_thread+217
 
 ***** elapsed=1638220184: tid=5327,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=EPOLL_CTL_DEL, fd=41, events=0x80002004
+
+#### Upstream Read Response: 已经完整读取 upstream HTTP Response，开始监听 downstream 的 WriteReady 事件，准备写 downstream HTTP Response
 ***** elapsed=1638231319: tid=5327,comm=wrk:worker_0: sys_enter_epoll_ctl, epfd=10, op=EPOLL_CTL_ADD, fd=41, events=0x80000005
 EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)
 EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)
@@ -553,12 +566,13 @@ libevent: EV_ET
 
 ***** elapsed=1638975366: tid=5327,comm=wrk:worker_0: END:EventFired
 
+#### Downstream Write Response: downstream 的 WriteReady 事件回调。
 ***** elapsed=1638980295: tid=5327,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
 FileEventImpl*=0x559f98e26ee0, fd=41, events=0x24
 libevent: EV_WRITE
 libevent: EV_ET
 
-
+#### Downstream Write Response: 写 downstream HTTP Response
 ***** elapsed=1639253752: tid=5327,comm=wrk:worker_0: socket_write, probe=tracepoint:syscalls:sys_exit_writev, fd=41, ret=4631
 
         writev+77
