@@ -50,7 +50,7 @@
 ]: 4
 
 
-##### SYSCALL 后触发
+##### SYSCALL 完成主要工作后，调用 __local_bh_enable_ip 触发
 
 @kstack[1580, 1580, node, 
     ip_rcv+1
@@ -60,8 +60,8 @@
     __softirqentry_text_start+209
     do_softirq_own_stack+42
     do_softirq.part.0+70
-    __local_bh_enable_ip+80
-    ip_finish_output2+402 <--- SYSCALL 最后 return 
+    __local_bh_enable_ip+80 <==============
+    ip_finish_output2+402 
     __ip_finish_output+243
     ip_finish_output+45
     ip_output+117
@@ -93,8 +93,8 @@
     __softirqentry_text_start+209
     do_softirq_own_stack+42
     do_softirq.part.0+70
-    __local_bh_enable_ip+80
-    ip_finish_output2+402  <--- SYSCALL 最后 return 
+    __local_bh_enable_ip+80 <==============
+    ip_finish_output2+402  
     __ip_finish_output+243
     ip_finish_output+45
     ip_local_out+61
