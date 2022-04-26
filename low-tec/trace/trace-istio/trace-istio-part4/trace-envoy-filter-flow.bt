@@ -13,7 +13,7 @@ kubectl -n idm-mark exec -it fortio-server -c  istio-proxy  -- bash -c 'ls -l /p
 lrwxrwxrwx 1 istio-proxy istio-proxy 0 Mar 31 09:18 /proc/15/ns/pid -> 'pid:[4026532799]'
 pgrep envoy | tee /dev/fd/2 | xargs -L 1 -I '{}' sudo ls -l /proc/'{}'/ns 
 
-export PID=4215
+export PID=4182
 export SCRIPT_HOME=`pwd`
 export bpftrace_image=cndt-bcc-ub
 
