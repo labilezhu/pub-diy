@@ -50,15 +50,15 @@ python3 ./offwaketime -p $PID
     b'[unknown]'
     b'entry_SYSCALL_64_after_hwframe'
     b'do_syscall_64'
-    b'__x64_sys_connect'
+    b'__x64_sys_connect' <<<<<<<<<<<<<<< kubelet connect Envoy
     b'__sys_connect'
     b'inet_stream_connect'
     b'release_sock'
     b'__release_sock'
-    b'tcp_v4_do_rcv'
-    b'tcp_rcv_state_process'
-    b'tcp_rcv_synsent_state_process'
-    b'tcp_send_ack'
+    b'tcp_v4_do_rcv' <<<<<<<<<<<<<<<< `sk->sk_backlog_rcv` point to
+    b'tcp_rcv_state_process' <<<<<<<<<<<<<<< `sk->sk_state` == TCP_SYN_SENT
+    b'tcp_rcv_synsent_state_process' <<<<<< read `SYN/ACK` from peer at TCP backlog
+    b'tcp_send_ack'  <<<<<<<<<<< send `ACK`, finish 3 handshake
     b'__tcp_send_ack.part.0'
     b'__tcp_transmit_skb'
     b'ip_queue_xmit'
@@ -68,7 +68,7 @@ python3 ./offwaketime -p $PID
     b'ip_finish_output'
     b'__ip_finish_output'
     b'ip_finish_output2'
-    b'__local_bh_enable_ip'
+    b'__local_bh_enable_ip' <<<<<<<<<< Task from user process done, kernel try run SoftIRQ by the way.
     b'do_softirq.part.0'
     b'do_softirq_own_stack'
     b'__softirqentry_text_start'
@@ -81,7 +81,7 @@ python3 ./offwaketime -p $PID
     b'ip_local_deliver'
     b'ip_local_deliver_finish'
     b'ip_protocol_deliver_rcu'
-    b'tcp_v4_rcv'
+    b'tcp_v4_rcv' <<<<<<<<<<< sk->sk_state == TCP_LISTEN
     b'tcp_child_process'
     b'sock_def_readable'
     b'__wake_up_sync_key'
