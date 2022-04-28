@@ -76,12 +76,12 @@ python3 ./offwaketime -p $PID
     b'process_backlog'
     b'__netif_receive_skb'
     b'__netif_receive_skb_one_core'
-    b'ip_rcv'
+    b'ip_rcv' <<<<<<<<<<<<< Receive IP packet(TCP SYNC) from `kubelet` to `Envoy`
     b'ip_rcv_finish'
     b'ip_local_deliver'
     b'ip_local_deliver_finish'
     b'ip_protocol_deliver_rcu'
-    b'tcp_v4_rcv' <<<<<<<<<<< sk->sk_state == TCP_LISTEN
+    b'tcp_v4_rcv' <<<<<<<<<<< `Envoy` side listener socket sk->sk_state == TCP_LISTEN
     b'tcp_child_process'
     b'sock_def_readable'
     b'__wake_up_sync_key'
