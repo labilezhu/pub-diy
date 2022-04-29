@@ -263,7 +263,7 @@
     b'do_syscall_64'
     b'__x64_sys_write'
     b'ksys_write'
-    b'vfs_write'
+    b'vfs_write' <<<<<<<< `kubelet` write socket
     b'__vfs_write'
     b'new_sync_write'
     b'sock_write_iter'
@@ -281,7 +281,7 @@
     b'ip_output'
     b'ip_finish_output'
     b'__ip_finish_output'
-    b'ip_finish_output2'
+    b'ip_finish_output2' <<<<<<< ip level sent done
     b'__local_bh_enable_ip' <<<<<<<<<< Task from user process done, kernel try run SoftIRQ by the way.
     b'do_softirq.part.0'
     b'do_softirq_own_stack'
@@ -425,6 +425,8 @@
 ```
 
 
+
+
 ## Envoy internal thread interaction
 
 
@@ -475,6 +477,7 @@
     target:          envoy 4182
         248
 ```
+
 
 ## IRQ Trigger
 
@@ -536,4 +539,64 @@
         3090
 ```
 
+```log
+    waker:           fortio 4094
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'[unknown]'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'do_syscall_64'
+    b'__x64_sys_write'
+    b'ksys_write'
+    b'vfs_write'
+    b'__vfs_write'
+    b'new_sync_write'
+    b'sock_write_iter'
+    b'sock_sendmsg'
+    b'inet6_sendmsg'
+    b'tcp_sendmsg'
+    b'tcp_sendmsg_locked'
+    b'tcp_push'
+    b'__tcp_push_pending_frames'
+    b'tcp_write_xmit'
+    b'__tcp_transmit_skb'
+    b'ip_queue_xmit'
+    b'__ip_queue_xmit'
+    b'apic_timer_interrupt'
+    b'smp_apic_timer_interrupt'
+    b'hrtimer_interrupt'
+    b'__hrtimer_run_queues'
+    b'hrtimer_wakeup'
+    --               --
+    b'finish_task_switch'
+    b'schedule'
+    b'schedule_hrtimeout_range_clock'
+    b'schedule_hrtimeout_range'
+    b'ep_poll'
+    b'do_epoll_wait'
+    b'__x64_sys_epoll_wait'
+    b'do_syscall_64'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'epoll_wait'
+    b'event_base_loop'
+    b'Envoy::Server::InstanceImpl::run()'
+    b'Envoy::MainCommonBase::run()'
+    b'Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)'
+    b'main'
+    b'__libc_start_main'
+    target:          envoy 4182
+        4076
+```
+
+## SoftIRQ timer wakeup
+```log
+
+```
 
