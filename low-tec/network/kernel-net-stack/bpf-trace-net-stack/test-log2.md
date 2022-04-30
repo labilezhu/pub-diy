@@ -1,3 +1,8 @@
+## Command 
+```
+python3 ./offwaketime -p $PID
+```
+
 ## Preempted
 
 ### involuntary preempted on cpu thread
@@ -328,6 +333,56 @@
         197
 ```
 
+#### `ksoftirqd` thread receive TCP data segment to `Envoy`, ReadReady
+```log
+    waker:           ksoftirqd/1 18
+    b'ret_from_fork'
+    b'kthread'
+    b'smpboot_thread_fn'
+    b'run_ksoftirqd'
+    b'__softirqentry_text_start'
+    b'net_rx_action'
+    b'process_backlog'
+    b'__netif_receive_skb'
+    b'__netif_receive_skb_one_core'
+    b'ip_rcv'
+    b'ip_rcv_finish'
+    b'ip_local_deliver'
+    b'ip_local_deliver_finish'
+    b'ip_protocol_deliver_rcu'
+    b'tcp_v4_rcv'
+    b'tcp_v4_do_rcv'
+    b'tcp_rcv_established'
+    b'tcp_data_ready'
+    b'sock_def_readable' <-----https://elixir.bootlin.com/linux/v5.4/source/net/core/sock.c#L2791
+    b'__wake_up_sync_key'
+    b'__wake_up_common_lock'
+    b'__wake_up_common'
+    b'ep_poll_callback' <----https://elixir.bootlin.com/linux/v5.4/source/fs/eventpoll.c#L1207
+    b'__wake_up'
+    b'__wake_up_common_lock'
+    b'__wake_up_common'
+    b'autoremove_wake_function'
+    --               --
+    b'finish_task_switch'
+    b'schedule'
+    b'schedule_hrtimeout_range_clock'
+    b'schedule_hrtimeout_range'
+    b'ep_poll'
+    b'do_epoll_wait'
+    b'__x64_sys_epoll_wait'
+    b'do_syscall_64'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'epoll_wait'
+    b'event_base_loop'
+    b'Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)'
+    b'Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)'
+    b'start_thread'
+    target:          wrk:worker_1 4450
+        2066849
+```
+
+
 ## Upstream Event
 
 ### DNS(UDP) non-blocking
@@ -478,8 +533,135 @@
         248
 ```
 
+### Thread local
+
+```log
+
+    waker:           wrk:worker_1 4450
+    b'start_thread'
+    b'Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)'
+    b'Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)'
+    b'event_base_loop'
+    b'event_process_active_single_queue'
+    b'Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)'
+    b'std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)'
+    b'Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)'
+    b'Envoy::Network::ConnectionImpl::onReadReady()'
+    b'Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)'
+    b'Envoy::Http::ConnectionManagerImpl::onData(Envoy::Buffer::Instance&, bool)'
+    b'virtual thunk to Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)'
+    b'Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)'
+    b'Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)'
+    b'Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)'
+    b'http_parser_execute'
+    b'Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#3}::__invoke(http_parser*)'
+    b'Envoy::Http::Http1::ConnectionImpl::onMessageComplete()'
+    b'Envoy::Http::Http1::ServerConnectionImpl::onMessageCompleteBase()'
+    b'Envoy::Http::ConnectionManagerImpl::ActiveStream::decodeHeaders(std::__1::unique_ptr<Envoy::Http::RequestHeaderMap, std::__1::default_delete<Envoy::Http::RequestHeaderMap> >&&, bool)'
+    b'Envoy::Http::FilterManager::decodeHeaders(Envoy::Http::ActiveStreamDecoderFilter*, Envoy::Http::RequestHeaderMap&, bool)'
+    b'Envoy::Router::Filter::decodeHeaders(Envoy::Http::RequestHeaderMap&, bool)'
+    b'Envoy::Router::Filter::createConnPool(Envoy::Upstream::ThreadLocalCluster&)'
+    b'Envoy::Extensions::Upstreams::Http::Generic::GenericGenericConnPoolFactory::createGenericConnPool(Envoy::Upstream::ThreadLocalCluster&, bool, Envoy::Router::RouteEntry const&, absl::optional<Envoy::Http::Protocol>, Envoy::Upstream::LoadBalancerContext*) const'
+    b'Envoy::Extensions::Upstreams::Http::Http::HttpConnPool::HttpConnPool(Envoy::Upstream::ThreadLocalCluster&, bool, Envoy::Router::RouteEntry const&, absl::optional<Envoy::Http::Protocol>, Envoy::Upstream::LoadBalancerContext*)'
+    b'Envoy::Upstream::ClusterManagerImpl::ThreadLocalClusterManagerImpl::ClusterEntry::httpConnPool(Envoy::Upstream::ResourcePriority, absl::optional<Envoy::Http::Protocol>, Envoy::Upstream::LoadBalancerContext*)'
+    b'Envoy::Upstream::ClusterManagerImpl::ThreadLocalClusterManagerImpl::ClusterEntry::connPool(Envoy::Upstream::ResourcePriority, absl::optional<Envoy::Http::Protocol>, Envoy::Upstream::LoadBalancerContext*, bool)'
+    b'Envoy::Upstream::OriginalDstCluster::LoadBalancer::chooseHost(Envoy::Upstream::LoadBalancerContext*)'
+    b'event_active'
+    b'event_callback_activate_nolock_'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'do_syscall_64'
+    b'__x64_sys_write'
+    b'ksys_write'
+    b'vfs_write'
+    b'__vfs_write'
+    b'eventfd_write'
+    b'__wake_up_locked_key'
+    b'__wake_up_common'
+    b'ep_poll_callback'
+    b'__wake_up'
+    b'__wake_up_common_lock'
+    b'__wake_up_common'
+    b'autoremove_wake_function'
+    --               --
+    b'finish_task_switch'
+    b'schedule'
+    b'schedule_hrtimeout_range_clock'
+    b'schedule_hrtimeout_range'
+    b'ep_poll'
+    b'do_epoll_wait'
+    b'__x64_sys_epoll_wait'
+    b'do_syscall_64'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'epoll_wait'
+    b'event_base_loop'
+    b'Envoy::Server::InstanceImpl::run()'
+    b'Envoy::MainCommonBase::run()'
+    b'Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)'
+    b'main'
+    b'__libc_start_main'
+    target:          envoy 4182
+        12781
+```
+
+### runOnAllThreads()
+
+```log
+    waker:           envoy 4182
+    b'__libc_start_main'
+    b'main'
+    b'Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)'
+    b'Envoy::MainCommonBase::run()'
+    b'Envoy::Server::InstanceImpl::run()'
+    b'event_base_loop'
+    b'event_process_active_single_queue'
+    b'Envoy::Event::DispatcherImpl::runPostCallbacks()'
+    b'std::__1::__function::__func<Envoy::Upstream::OriginalDstCluster::LoadBalancer::chooseHost(Envoy::Upstream::LoadBalancerContext*)::$_0, std::__1::allocator<Envoy::Upstream::OriginalDstCluster::LoadBalancer::chooseHost(Envoy::Upstream::LoadBalancerContext*)::$_0>, void ()>::operator()()'
+    b'Envoy::Upstream::OriginalDstCluster::addHost(std::__1::shared_ptr<Envoy::Upstream::Host>&)'
+    b'Envoy::Upstream::PrioritySetImpl::updateHosts(unsigned int, Envoy::Upstream::PrioritySet::UpdateHostsParams&&, std::__1::shared_ptr<std::__1::vector<unsigned int, std::__1::allocator<unsigned int> > const>, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&, absl::optional<unsigned int>)'
+    b'Envoy::Upstream::HostSetImpl::runUpdateCallbacks(std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&)'
+    b'Envoy::Upstream::PrioritySetImpl::runReferenceUpdateCallbacks(unsigned int, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&)'
+    b'std::__1::__function::__func<Envoy::Upstream::ClusterManagerImpl::onClusterInit(Envoy::Upstream::ClusterManagerCluster&)::$_8, std::__1::allocator<Envoy::Upstream::ClusterManagerImpl::onClusterInit(Envoy::Upstream::ClusterManagerCluster&)::$_8>, void (unsigned int, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&)>::operator()(unsigned int&&, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&, std::__1::vector<std::__1::shared_ptr<Envoy::Upstream::Host>, std::__1::allocator<std::__1::shared_ptr<Envoy::Upstream::Host> > > const&)'
+    b'Envoy::Upstream::ClusterManagerImpl::postThreadLocalClusterUpdate(Envoy::Upstream::ClusterManagerCluster&, Envoy::Upstream::ClusterManagerImpl::ThreadLocalClusterUpdateParams&&)'
+    b'Envoy::ThreadLocal::TypedSlot<Envoy::Upstream::ClusterManagerImpl::ThreadLocalClusterManagerImpl>::runOnAllThreads(std::__1::function<void (Envoy::OptRef<Envoy::Upstream::ClusterManagerImpl::ThreadLocalClusterManagerImpl>)> const&)'
+    b'Envoy::ThreadLocal::InstanceImpl::SlotImpl::runOnAllThreads(std::__1::function<void (std::__1::shared_ptr<Envoy::ThreadLocal::ThreadLocalObject>)> const&)'
+    b'Envoy::ThreadLocal::InstanceImpl::runOnAllThreads(std::__1::function<void ()>)'
+    b'event_active'
+    b'event_callback_activate_nolock_'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'do_syscall_64'
+    b'__x64_sys_write'
+    b'ksys_write'
+    b'vfs_write'
+    b'__vfs_write'
+    b'eventfd_write'
+    b'__wake_up_locked_key'
+    b'__wake_up_common'
+    b'ep_poll_callback'
+    b'__wake_up'
+    b'__wake_up_common_lock'
+    b'__wake_up_common'
+    b'autoremove_wake_function'
+    --               --
+    b'finish_task_switch'
+    b'schedule'
+    b'schedule_hrtimeout_range_clock'
+    b'schedule_hrtimeout_range'
+    b'ep_poll'
+    b'do_epoll_wait'
+    b'__x64_sys_epoll_wait'
+    b'do_syscall_64'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'epoll_wait'
+    b'event_base_loop'
+    b'Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)'
+    b'Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)'
+    b'start_thread'
+    target:          wrk:worker_0 4449
+        12940
+```
 
 ## IRQ Trigger
+
 
 ```
     waker:           swapper/1 0
@@ -539,6 +721,8 @@
         3090
 ```
 
+### APIC Timer IRQ Trigger hrtimer_wakeup epoll timeout
+
 ```log
     waker:           fortio 4094
     b'[unknown]'
@@ -593,6 +777,82 @@
     b'__libc_start_main'
     target:          envoy 4182
         4076
+```
+
+
+## Lock wakeup
+
+### futex unlocked wake
+```log
+    waker:           envoy 4182
+    b'__libc_start_main'
+    b'main'
+    b'Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)'
+    b'Envoy::MainCommonBase::run()'
+    b'Envoy::Server::InstanceImpl::run()'
+    b'event_base_loop'
+    b'event_process_active_single_queue'
+    b'std::__1::__function::__func<Envoy::AccessLog::AccessLogFileImpl::AccessLogFileImpl(std::__1::unique_ptr<Envoy::Filesystem::File, std::__1::default_delete<Envoy::Filesystem::File> >&&, Envoy::Event::Dispatcher&, Envoy::Thread::BasicLockable&, Envoy::AccessLogFileStats&, std::__1::chrono::duration<long long, std::__1::ratio<1l, 1000l> >, Envoy::Thread::ThreadFactory&)::$_0, std::__1::allocator<Envoy::AccessLog::AccessLogFileImpl::AccessLogFileImpl(std::__1::unique_ptr<Envoy::Filesystem::File, std::__1::default_delete<Envoy::Filesystem::File> >&&, Envoy::Event::Dispatcher&, Envoy::Thread::BasicLockable&, Envoy::AccessLogFileStats&, std::__1::chrono::duration<long long, std::__1::ratio<1l, 1000l> >, Envoy::Thread::ThreadFactory&)::$_0>, void ()>::operator()()'
+    b'absl::CondVar::Signal()'
+    b'absl::Mutex::Fer(absl::base_internal::PerThreadSynch*)'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'do_syscall_64'
+    b'__x64_sys_futex'
+    b'do_futex'
+    b'futex_wake'
+    --               --
+    b'finish_task_switch'
+    b'schedule'
+    b'futex_wait_queue_me'
+    b'futex_wait'
+    b'do_futex'
+    b'__x64_sys_futex'
+    b'do_syscall_64'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'syscall'
+    b'AbslInternalPerThreadSemWait'
+    b'absl::CondVar::WaitCommon(absl::Mutex*, absl::synchronization_internal::KernelTimeout)'
+    b'Envoy::AccessLog::AccessLogFileImpl::flushThreadFunc()'
+    b'Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)'
+    b'start_thread'
+    target:          AccessLogFlush 4478
+        33058275
+```
+
+
+### futex timeout wake
+```log
+    waker:           swapper/1 0
+    b'secondary_startup_64'
+    b'start_secondary'
+    b'cpu_startup_entry'
+    b'do_idle'
+    b'default_idle_call'
+    b'arch_cpu_idle'
+    b'native_safe_halt'
+    b'apic_timer_interrupt'
+    b'smp_apic_timer_interrupt'
+    b'hrtimer_interrupt'
+    b'__hrtimer_run_queues'
+    b'hrtimer_wakeup'
+    --               --
+    b'finish_task_switch'
+    b'schedule'
+    b'futex_wait_queue_me'
+    b'futex_wait'
+    b'do_futex'
+    b'__x64_sys_futex'
+    b'do_syscall_64'
+    b'entry_SYSCALL_64_after_hwframe'
+    b'syscall'
+    b'AbslInternalPerThreadSemWait'
+    b'absl::CondVar::WaitCommon(absl::Mutex*, absl::synchronization_internal::KernelTimeout)'
+    b'gpr_cv_wait'
+    b'timer_thread(void*)'
+    b'grpc_core::(anonymous namespace)::ThreadInternalsPosix::ThreadInternalsPosix(char const*, void (*)(void*), void*, bool*, grpc_core::Thread::Options const&)::{lambda(void*)#1}::__invoke(void*)'
+    b'start_thread'
+    target:          grpc_global_tim 4212
+        28011271
 ```
 
 ## SoftIRQ timer wakeup
