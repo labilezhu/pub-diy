@@ -1,19 +1,5 @@
 #!/usr/local/bin/bpftrace
 
-/*
-IMPORT-ENV: $ENVOY_PID
-args: $1=ENVOY_PID
-*/
-
-/*
-cd /home/labile/pub-diy/low-tec/network/kernel-net-stack/bpf-trace-net-stack
-export SCRIPT_HOME=`pwd`
-export BT=ep_poll_interact.bt
-export ENVOY_PID=$PID
-
-./warp-bt.sh
-*/
-
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/fs.h>
@@ -116,7 +102,7 @@ kprobe:ep_poll_callback
     //     elapsed, tid, comm, 
     //     $fd, $file);
 
-    $ep = ($base_epitem->ep);
+    $ep = (uint64)($base_epitem->ep);
 
     $socket_file_ops = kaddr("socket_file_ops");
     // printf("socket_file_ops=%p\n", $socket_file_ops);
@@ -155,50 +141,43 @@ kprobe:ep_poll_callback
     // Destination port is big endian, it must be flipped
     $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
 
-    $tcp_state = $sk->__sk_common.skc_state;
+    $state = $sk->__sk_common.skc_state;
+    $statestr = @tcp_states[$state];
 
-    @scope_ep_poll_callback[tid]=($fd,$saddr,$lport,$daddr,$dport,$tcp_state);
-}
 
-kprobe:try_to_wake_up
-/@scope_ep_poll_callback[tid].0/
-{
-    $taskToWakeuped = (struct task_struct *)arg0;
+    printf("elapsed=%d: tid=%d,comm=%s: ep_poll_callback: fd=%d, peerPort=%d\n", 
+        elapsed, tid, comm, 
+        $fd, $dport);    
 
-    if( $taskToWakeuped->tgid == ${ENVOY_PID} ) {
+    printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
+        $daddr, $dport, $statestr);
 
-        $s = @scope_ep_poll_callback[tid];
-
-        printf("\n");
-        printf("***waker: tid=%d,comm=%s: ep_poll_callback: fd=%d, %14s:%-6d %14s:%-6d %6s\n", 
-            tid, comm, 
-            $s.0, $s.1, $s.2, $s.3, $s.4, @tcp_states[$s.5]);    
-        // printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
-        //     $daddr, $dport, $statestr);   
-
-        @wakeupedTaskToWakeupedTid[$taskToWakeuped->pid]=1;
-        printf("try_to_wake_up: wakeupedPID=%d, wakeupedTID=%d, wakeupedTIDComm=%s\n", 
-            $taskToWakeuped->tgid, $taskToWakeuped->pid, $taskToWakeuped->comm);    
+    printf("wakeup: $eventpoll=%p\n", $ep);
+    if( @eventpoll2pid[$ep].0 ) {
+        printf("Wakeup: $eventpoll=%p\n", $ep);
     }
 
- 
-
-    delete(@scope_ep_poll_callback[tid]);
 }
 
-
-tracepoint:syscalls:sys_exit_epoll_wait
-/pid == ${ENVOY_PID}/
+kprobe:ep_poll
 {
-    if( args->ret <= 0 ) {
-        // printf("do_epoll_wait retval=%d\n", args->ret);
-        return;
+    $eventpoll = /* (struct eventpoll *) */(uint64)arg0;
+    @scope_ep_poll_with_eventpoll[tid]=$eventpoll;
+    @eventpoll2pid[$eventpoll]=(pid,tid,comm);
+}
+
+kretprobe:ep_poll
+/@scope_ep_poll_with_eventpoll[tid]/
+{
+    $eventpoll = @scope_ep_poll_with_eventpoll[tid];
+    
+    if( @eventpoll2pid[$eventpoll].0 ) {
+        printf("deleted: eventpoll2pid[%p]\n", $eventpoll);
     }
-    // if(@wakeupedTaskToWakeupedTid[tid]) {
-        printf("--------\n");
-        printf("***sleeper: pid=%d, tid=%d,comm=%s, event_count=%d\n", pid, tid, comm, args->ret);
-    // }
-    delete(@wakeupedTaskToWakeupedTid[tid]);
+    delete(@eventpoll2pid[$eventpoll]);
+
+    delete(@scope_ep_poll_with_eventpoll[tid]);
+    // printf("ep_poll() wakeuped, exited. $eventpoll=%p\n", $eventpoll);
 }
 
 END
