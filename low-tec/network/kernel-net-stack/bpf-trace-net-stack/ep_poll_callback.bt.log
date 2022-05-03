@@ -1,0 +1,2716 @@
+./warp-bt.sh
+
+Downstream POD IP: 172.30.207.163
+
+POD IP: 172.21.206.207
+POD Sidecar(Envoy) Inbound listen port: 127.0.0.1:15006
+
+Upstream endpoint: 172.21.206.207:8080 (same POD of sidecar)
+
+
+
+     1  #!/usr/local/bin/bpftrace
+     2
+     3  /*
+     4  IMPORT-ENV: 4182
+     5  args: $1=ENVOY_PID
+     6  */
+     7
+     8  /*
+     9  cd /home/labile/pub-diy/low-tec/network/kernel-net-stack/bpf-trace-net-stack
+    10  export SCRIPT_HOME=`pwd`
+    11  export BT=ep_poll_interact.bt
+    12  export ENVOY_PID=$PID
+    13
+    14  ./warp-bt.sh
+    15  */
+    16
+    17  #include <linux/sched.h>
+    18  #include <linux/wait.h>
+    19  #include <linux/fs.h>
+    20  #include <linux/net.h>
+    21  #include <linux/socket.h>
+    22  #include <net/sock.h>
+    23
+    24  struct epoll_filefd {
+    25          struct file *file;
+    26          int fd;
+    27  };
+    28
+    29  struct epitem {
+    30          union {
+    31                  /* RB tree node links this structure to the eventpoll RB tree */
+    32                  struct rb_node rbn;
+    33                  /* Used to free the struct epitem */
+    34                  struct rcu_head rcu;
+    35          };
+    36
+    37          /* List header used to link this structure to the eventpoll ready list */
+    38          struct list_head rdllink;
+    39
+    40          /*
+    41           * Works together "struct eventpoll"->ovflist in keeping the
+    42           * single linked chain of items.
+    43           */
+    44          struct epitem *next;
+    45
+    46          /* The file descriptor information this item refers to */
+    47          struct epoll_filefd ffd;
+    48
+    49          /* Number of active wait queue attached to poll operations */
+    50          int nwait;
+    51
+    52          /* List containing poll wait queues */
+    53          struct list_head pwqlist;
+    54
+    55          /* The "container" of this item */
+    56          struct eventpoll *ep;
+    57
+    58          // /* List header used to link this item to the "struct file" items list */
+    59          // struct list_head fllink;
+    60
+    61          // /* wakeup_source used when EPOLLWAKEUP is set */
+    62          // struct wakeup_source __rcu *ws;
+    63
+    64          // /* The structure that describe the interested events and the source fd */
+    65          // struct epoll_event event;
+    66  };
+    67
+    68
+    69  struct eppoll_entry {
+    70          /* List header used to link this structure to the "struct epitem" */
+    71          struct list_head llink;
+    72
+    73          /* The "base" pointer is set to the container "struct epitem" */
+    74          struct epitem *base;
+    75
+    76          /*
+    77           * Wait queue item that will be linked to the target file wait
+    78           * queue head.
+    79           */
+    80          struct wait_queue_entry wait;
+    81
+    82          // /* The wait queue head that linked the "wait" wait queue item */
+    83          // wait_queue_head_t *whead;
+    84  };
+    85
+    86
+    87  BEGIN
+    88  {
+    89      printf("Tracing nanosecond time in off-CPU stacks. Ctrl-C to end.\n");
+    90
+    91          // See include/net/tcp_states.h:
+    92          @tcp_states[1] = "ESTABLISHED";
+    93          @tcp_states[2] = "SYN_SENT";
+    94          @tcp_states[3] = "SYN_RECV";
+    95          @tcp_states[4] = "FIN_WAIT1";
+    96          @tcp_states[5] = "FIN_WAIT2";
+    97          @tcp_states[6] = "TIME_WAIT";
+    98          @tcp_states[7] = "CLOSE";
+    99          @tcp_states[8] = "CLOSE_WAIT";
+   100          @tcp_states[9] = "LAST_ACK";
+   101          @tcp_states[10] = "LISTEN";
+   102          @tcp_states[11] = "CLOSING";
+   103          @tcp_states[12] = "NEW_SYN_RECV";    
+   104  }
+   105
+   106  kprobe:ep_poll_callback
+   107  {
+   108      // record previous thread sleep time
+   109      $wq_entry = (struct wait_queue_entry *)arg0;
+   110      $u = (uint64)$wq_entry;
+   111      $eppoll_entry = (struct eppoll_entry *) ( $u-8-sizeof(struct list_head) );
+   112      $base_epitem = $eppoll_entry->base;
+   113      $file = $base_epitem->ffd.file;
+   114      $fd = $base_epitem->ffd.fd;
+   115      // printf("elapsed=%d: tid=%d,comm=%s: ep_poll_callback: fd=%d, file*=%p\n", 
+   116      //     elapsed, tid, comm, 
+   117      //     $fd, $file);
+   118
+   119      $ep = ($base_epitem->ep);
+   120
+   121      $socket_file_ops = kaddr("socket_file_ops");
+   122      // printf("socket_file_ops=%p\n", $socket_file_ops);
+   123      
+   124      if( $file->f_op != $socket_file_ops ) {//not socket file
+   125          // printf("not socket_file_ops, file->f_op=%p, ksym=%s\n", $file->f_op, ksym($file->f_op));
+   126          return;
+   127      }
+   128
+   129      $private_data = $file->private_data;
+   130      if( ((uint64)$private_data ) == 0 ) {
+   131          // printf("((uint64)$private_data ) == 0s\n");
+   132          return;
+   133      }
+   134
+   135      $socket = (struct socket*) $private_data;
+   136
+   137      // printf("socket\n");
+   138      $sk = (struct sock *) $socket->sk;
+   139
+   140          $inet_family = $sk->__sk_common.skc_family;
+   141      if ($inet_family != AF_INET) {
+   142          return;
+   143      }
+   144
+   145      // initialize variable type:
+   146      $daddr = ntop(0);
+   147      $saddr = ntop(0);
+   148      $daddr = ntop($sk->__sk_common.skc_daddr);
+   149      $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+   150      $lport = $sk->__sk_common.skc_num;
+   151      $dport = $sk->__sk_common.skc_dport;
+   152
+   153      
+   154      $dport = $sk->__sk_common.skc_dport;
+   155      // Destination port is big endian, it must be flipped
+   156      $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+   157
+   158      $tcp_state = $sk->__sk_common.skc_state;
+   159
+   160      @scope_ep_poll_callback[tid]=($fd,$saddr,$lport,$daddr,$dport,$tcp_state,$sk);
+   161  }
+   162
+   163  kprobe:try_to_wake_up
+   164  /@scope_ep_poll_callback[tid].0/
+   165  {
+   166      $taskToWakeuped = (struct task_struct *)arg0;
+   167
+   168      if( $taskToWakeuped->tgid == 4182 ) {
+   169
+   170          $s = @scope_ep_poll_callback[tid];
+   171
+   172          printf("\n");
+   173          printf("***waker: elapsed=%-10u tid=%d,comm=%s: ep_poll_callback: fd=%d, %14s:%-6d %14s:%-6d %6s socket=%p\n", 
+   174              elapsed / 1000000, tid, comm, 
+   175              $s.0, $s.1, $s.2, $s.3, $s.4, @tcp_states[$s.5], $s.6);    
+   176          // printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
+   177          //     $daddr, $dport, $statestr);   
+   178
+   179          @wakeupedTaskToWakeupedTid[$taskToWakeuped->pid]=1;
+   180          printf("try_to_wake_up: wakeupedPID=%d, wakeupedTID=%d, wakeupedTIDComm=%s\n", 
+   181              $taskToWakeuped->tgid, $taskToWakeuped->pid, $taskToWakeuped->comm);    
+   182      }
+   183
+   184   
+   185
+   186      delete(@scope_ep_poll_callback[tid]);
+   187  }
+   188
+   189
+   190  tracepoint:syscalls:sys_exit_epoll_wait
+   191  /pid == 4182/
+   192  {
+   193      if( args->ret <= 0 ) {
+   194          // printf("do_epoll_wait retval=%d\n", args->ret);
+   195          return;
+   196      }
+   197      // if(@wakeupedTaskToWakeupedTid[tid]) {
+   198          printf("--------\n");
+   199          printf("***sleeper-wakeup: elapsed=%-10u, pid=%d, tid=%d,comm=%s, event_count=%d\n", elapsed / 1000000, pid, tid, comm, args->ret);
+   200      // }
+   201      delete(@wakeupedTaskToWakeupedTid[tid]);
+   202  }
+   203
+   204  uprobe:/proc/4182/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
+   205  /pid == 4182/ 
+   206  {
+   207         $fd = arg0;
+   208          $libevent_events = arg1;
+   209
+   210          printf("***** elapsed=%-10u: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()\n", 
+   211              elapsed / 1000000, tid, comm);
+   212          printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, $libevent_events);
+   213
+   214          if( $libevent_events & (uint16)0x01 /*EV_TIMEOUT*/ ) {
+   215                  printf("libevent: EV_TIMEOUT\n");
+   216          }
+   217          if( $libevent_events & (uint16)0x02 /*EV_TIMEOUT*/ ) {
+   218                  printf("libevent: EV_READ\n");
+   219          }
+   220          if( $libevent_events & (uint16)0x04 /*EV_TIMEOUT*/ ) {
+   221                  printf("libevent: EV_WRITE\n");
+   222          }
+   223          if( $libevent_events & (uint16)0x20 /*EV_TIMEOUT*/ ) {
+   224                  printf("libevent: EV_ET\n");
+   225          }
+   226          if( $libevent_events & (uint16)0x80 /*EV_TIMEOUT*/ ) {
+   227                  printf("libevent: EV_CLOSED\n");
+   228          }
+   229
+   230  }
+   231
+   232  kretprobe:inet_csk_accept
+   233  /pid==4182 /
+   234  {
+   235          $sk = (struct sock *)retval;
+   236          $inet_family = $sk->__sk_common.skc_family;
+   237
+   238          if ($inet_family == AF_INET) {
+   239                  // initialize variable type:
+   240                  $daddr = ntop(0);
+   241                  $saddr = ntop(0);
+   242          $daddr = ntop($sk->__sk_common.skc_daddr);
+   243          $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+   244
+   245                  $lport = $sk->__sk_common.skc_num;
+   246
+   247                  $dport = $sk->__sk_common.skc_dport;
+   248                  $qlen  = $sk->sk_ack_backlog;
+   249                  $qmax  = $sk->sk_max_ack_backlog;
+   250
+   251                  // Destination port is big endian, it must be flipped
+   252                  $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+   253
+   254                  printf("inet_csk_accept: %-39s %-5d %-39s %-5d ", $daddr, $dport, $saddr, $lport);
+   255          }
+   256  }
+   257
+   258  tracepoint:syscalls:sys_exit_accept4
+   259  /pid==4182 /
+   260  {
+   261          $fd = args->ret;
+   262          if( $fd < 0 ) {
+   263                  return;
+   264          }
+   265          printf("sys_exit_accept4 fd=%d\n", $fd);
+   266  }
+   267
+   268  tracepoint:syscalls:sys_enter_close
+   269  /pid==4182 /
+   270  {
+   271          $fd = args->fd;
+   272          printf("close fd=%d\n", $fd);
+   273  }
+   274
+   275
+   276  // tracepoint:syscalls:sys_enter_epoll_wait
+   277  // /pid == 4182/
+   278  // {
+   279  //     // if(@wakeupedTaskToWakeupedTid[tid]) {
+   280  //         printf("--------\n");
+   281  //         printf("***sleeper-sleep: pid=%d, tid=%d,comm=%s\n", pid, tid, comm);
+   282  //     // }
+   283  //     // delete(@wakeupedTaskToWakeupedTid[tid]);
+   284  // }
+   285
+   286
+   287  END
+   288  {
+   289      clear(@tcp_states);
+   290      // clear(@eventpoll2pid);
+   291      // clear(@eventpoll2tid);
+   292  }
+DEBUG: [/home/runner/work/bpftrace/bpftrace/src/ast/passes/codegen_llvm.cpp:1734] Struct offset mismatch for: inet(3): (llvm) 30 != 32
+DEBUG: [/home/runner/work/bpftrace/bpftrace/src/ast/passes/codegen_llvm.cpp:1734] Struct offset mismatch for: unsigned int16(4): (llvm) 54 != 56
+DEBUG: [/home/runner/work/bpftrace/bpftrace/src/ast/passes/codegen_llvm.cpp:1734] Struct offset mismatch for: unsigned int8(5): (llvm) 56 != 58
+Attaching 9 probes...
+Tracing nanosecond time in off-CPU stacks. Ctrl-C to end.
+
+***sleeper-wakeup: elapsed=40455     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=40456     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=40696      tid=169239,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=40696      tid=169239,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=40696     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40696     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38100 172.21.206.207                          15021 sys_exit_accept4 fd=42
+--------
+***sleeper-wakeup: elapsed=40696     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40696     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=40697      tid=169239,comm=kubelet: ep_poll_callback: fd=42, 172.21.206.207:15021  192.168.122.55:38100  ESTABLISHED socket=0xffff9f5e94e06900
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=40697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=40698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=40700      tid=4405,comm=pilot-agent: ep_poll_callback: fd=44,      127.0.0.1:37162       127.0.0.1:15020  ESTABLISHED socket=0xffff9f5e5390bd40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=40700     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40700     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=40701     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40701     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=40701      tid=169239,comm=kubelet: ep_poll_callback: fd=42, 172.21.206.207:15021  192.168.122.55:38100  CLOSE_WAIT socket=0xffff9f5e94e06900
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=40702     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=40702     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=42, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=42
+--------
+***sleeper-wakeup: elapsed=40856     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=40856     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=40856     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=40961     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=40962     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=41151      tid=0,comm=swapper/0: ep_poll_callback: fd=40,        0.0.0.0:15006         0.0.0.0:0      LISTEN socket=0xffff9f5e53bfbd40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=41151      tid=0,comm=swapper/0: ep_poll_callback: fd=36,        0.0.0.0:15006         0.0.0.0:0      LISTEN socket=0xffff9f5e53bfbd40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41151     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41151     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fea0, fd=36, events=0x2
+libevent: EV_READ
+inet_csk_accept: 172.30.207.163                          51936 172.21.206.207                          15006 sys_exit_accept4 fd=42
+inet_csk_accept: 172.30.207.163                          51938 172.21.206.207                          15006 sys_exit_accept4 fd=43
+--------
+***sleeper-wakeup: elapsed=41152     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=41152     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=41153     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41166      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41166     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41166     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41182      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41182     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=41182     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=41183     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41184     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=41184     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=41184     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41185      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41185     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41185     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41185     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=41191     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=41191     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=41199     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41201     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=41201     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41214     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41215     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41240      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41240     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41241     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41242     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41242     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41373      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41373     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=41373     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=41374     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41374     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=3
+***** elapsed=41374     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=41374     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=41374     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41377      tid=4076,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41379     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41380     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41380     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41380     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=41417      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=41419     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41420     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41420     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=41420     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=41467     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=41467     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=41967     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=41967     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=42422      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=42422     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=42423     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=42423     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42424     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=42424     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=42424     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=42424      tid=4076,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=42425     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=42425     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42425     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=42426     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=42426      tid=4094,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=42427     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=42428     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42429     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=42429     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42469     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=42469     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=42697      tid=1193,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=42697      tid=1193,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=42697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=42697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38110 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=42699     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=42699     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42705     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=42705     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42706     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=42706     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=42732     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=42732     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=42757      tid=838,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38110  CLOSE_WAIT socket=0xffff9f5eb048abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=42787     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=42787     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+--------
+***sleeper-wakeup: elapsed=42970     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=42970     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=43469     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=43469     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=43473      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=43475     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=43475     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=43483     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=43484     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=43484     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=43484     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=43485      tid=4095,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=43485     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=43485     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=43486     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=43486     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=43486     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=43486     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=43969     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=43970     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=44467     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=44467     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=44529      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=44529     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=44529     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=44530     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=44532     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=44544     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=44545     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=44545      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=44553     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=44553     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=44555     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=44566     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=44568     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=44571     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=44696      tid=1193,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=44696      tid=1193,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=44697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=44697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38120 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=44697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=44697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=44697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=44697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=44701     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=44701     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=44701     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=44701     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=44702     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=44702     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+--------
+***sleeper-wakeup: elapsed=44970     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=44970     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=45469     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=45469     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=45573      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=45574     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=45574     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=45574     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=45574     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=45574     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=45575     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=45575      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=45577     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=45578     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=45579     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=45580     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=45580     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=45581     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=45859     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=45863     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=45864     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=45967     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=45967     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=46264      tid=3606,comm=coredns: ep_poll_callback: fd=15,      127.0.0.1:42676       127.0.0.1:8080   ESTABLISHED socket=0xffff9f5e5a78d780
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=46469     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=46469     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=46626      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=46626     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=46626     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=46627     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46628     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=46628     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=46628     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=46630      tid=4095,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=46630     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=46630     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46645     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=46645     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=46663     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46663     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=46663     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=46707      tid=838,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=46707      tid=838,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=46708     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46708     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38130 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=46708     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46708     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=46710      tid=1193,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38130  ESTABLISHED socket=0xffff9f5e94e04600
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=46710     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46710     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46712     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46712     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46713     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46713     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46713     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46713     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=46716     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=46716     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+--------
+***sleeper-wakeup: elapsed=46970     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=46970     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=47475     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=47479     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=47680      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=47680     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=47680     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=47681     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=47681     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=47682      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=47683     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=47683     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=47693     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=47694     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=47695     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=47705     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=47705      tid=4094,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=47706     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=47706     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=47726     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=47726     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=47978     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=47982     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=48483     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=48483     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=48697      tid=838,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=48697      tid=838,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=48697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38140 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=48698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=48702      tid=1193,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38140  ESTABLISHED socket=0xffff9f5e94e00000
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=48702     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48702     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48713     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48713     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48714     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48714     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48715     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48715     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48715     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=48715     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+
+***waker: elapsed=48743      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=48743     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=48743     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=48744     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48744     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=48745     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=48745     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=48745      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=48745     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=48746     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48746     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=48746     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=48747      tid=4094,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=48779     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=48779     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48780     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=48787     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=48984     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=48985     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=49486     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=49486     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=49787      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=49787     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=49788     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=49788     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=49788     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=49788     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=49789     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=49789      tid=4095,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=49789     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=49789     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=49790     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=49790     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=49790      tid=4095,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=49790     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=49792     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=49792     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=49793     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=49986     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=49986     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=50486     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=50486     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=50697      tid=1193,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=50697      tid=1193,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=50697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38152 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=50697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=50697      tid=1193,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38152  ESTABLISHED socket=0xffff9f5eb048a300
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=50697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=50698      tid=1193,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38152  CLOSE_WAIT socket=0xffff9f5eb048a300
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=50698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=50698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+
+***waker: elapsed=50837      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=50838     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50838     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50838     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50838     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=50838      tid=4095,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=50838     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50839     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50839     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50839     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=50856      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=50857     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50857     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50857     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50857     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=50858      tid=4095,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=50858     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50858     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50858     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=50858     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=50866     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=50866     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=50867     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=50984     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=50984     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=51485     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=51485     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=51897      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=51898     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=51898     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=51917     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=51917     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=51917     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=51918     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=51935      tid=4095,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=51935     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=51945     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=51946     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=51946     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=51950      tid=4095,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=51950     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=51950     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=51950     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=51951     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=51989     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=51993     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=52491     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=52491     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=52697      tid=838,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=52697      tid=838,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=52697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=52697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+--------
+***sleeper-wakeup: elapsed=52697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=52697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38162 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=52697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=52697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=52698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52702     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=52702     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52702     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=52702     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=52711      tid=838,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38162  CLOSE_WAIT socket=0xffff9f5e94e02bc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=52713     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=52713     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+
+***waker: elapsed=52942      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=52943     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=52943     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=52943     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52943     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=52943     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=52943     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52944     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=52944     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52944     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=52944     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=52944      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=52944     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=52944     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=52945     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=52945     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=52944      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=52987     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=52987     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=53488     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=53488     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=53990     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=53998      tid=1268385,comm=dockerd: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=53998     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=53999     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=53999     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54000     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=54000     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=54000     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54001     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=54001      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=54003     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=54005     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=54006     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54023     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=54023     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=54023     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54487     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=54487     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=54697      tid=169239,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=54697      tid=169239,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=54697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=54697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38172 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=54697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=54697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=54697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=54698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54698     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=54698     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=54701     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=54701     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+--------
+***sleeper-wakeup: elapsed=54988     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=54988     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=55049      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=55049     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=55049     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=55050     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=55051     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=55051     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=55051     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=55054      tid=4095,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=55054     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=55055     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=55055     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=55057     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=55070      tid=4094,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=55071     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=55071     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=55072     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=55072     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=55487     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=55487     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=55868     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=55868     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=55868     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=55990     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=55994     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=56100      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=56101     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=56101     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=56102     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56102     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=56102     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=56102     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=56103      tid=4095,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=56103     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=56103     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56106     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=56106     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=56106      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=56106     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=56106     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56108     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=56109     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56489     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=56494     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=56696      tid=1193,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=56696      tid=1193,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=56696     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=56696     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38182 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=56697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=56697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=56697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56699     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=56699     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56700     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=56700     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=56700     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=56700     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+--------
+***sleeper-wakeup: elapsed=56989     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=56989     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=57153      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=57153     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=57153     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=57154     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=57155     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=57155     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=57156     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=57163      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=57163     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=57163     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=57164     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=57164     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=57173     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=57173     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=57173     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=57173     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=57490     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=57491     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=57987     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=57990     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=58205      tid=0,comm=swapper/0: ep_poll_callback: fd=43, 172.21.206.207:15006  172.30.207.163:51938  ESTABLISHED socket=0xffff9f5e94e03480
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=58205     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=58205     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=58205     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58205     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=2
+***** elapsed=58205     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=58205     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=58206      tid=4076,comm=fortio: ep_poll_callback: fd=46,      127.0.0.6:58411  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e539088c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=58206     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=58206     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64685500, fd=46, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58206     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=58206     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64b0fa40, fd=43, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=58207      tid=4076,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=58208     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=58208     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58208     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=58208     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58503     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=58539     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=58697      tid=838,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=58697      tid=838,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=58697     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=58697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+--------
+***sleeper-wakeup: elapsed=58697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=58697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38192 172.21.206.207                          15021 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=58705     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=58705     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58706     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=58706     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58706     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=58706     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e7e0, fd=44, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=58707     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=58707     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=58710      tid=1193,comm=kubelet: ep_poll_callback: fd=47, 172.21.206.207:15021  192.168.122.55:38192  CLOSE_WAIT socket=0xffff9f5e94e06900
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=58721     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=58721     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=47
+--------
+***sleeper-wakeup: elapsed=59003     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=59005     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=59264      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=59268     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=59271      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=40,        0.0.0.0:15006         0.0.0.0:0      LISTEN socket=0xffff9f5e53bfbd40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+***** elapsed=59271     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59274     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=59274     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e2a0, fd=40, events=0x2
+libevent: EV_READ
+inet_csk_accept: 172.30.207.163                          52042 172.21.206.207                          15006 sys_exit_accept4 fd=47
+--------
+***sleeper-wakeup: elapsed=59274     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=59275     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59308     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+
+***waker: elapsed=59308      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=47, 172.21.206.207:15006  172.30.207.163:52042  ESTABLISHED socket=0xffff9f5e94e01a40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=59308     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=59308     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=59314     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59321     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=2
+***** elapsed=59321     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=59321     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af647502a0, fd=48, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=59321      tid=4076,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+
+***waker: elapsed=59323      tid=4076,comm=fortio: ep_poll_callback: fd=48,      127.0.0.6:44735  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e04794ec0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=59323     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=59323     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af647502a0, fd=48, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59323     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=59323     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59322     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=59322     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59324     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=59324     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=59503     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=59504     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=60014     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=60014     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=60316      tid=0,comm=swapper/0: ep_poll_callback: fd=47, 172.21.206.207:15006  172.30.207.163:52042  ESTABLISHED socket=0xffff9f5e94e01a40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=60316      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=60316     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60316     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60317     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60317     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60320     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=60322     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60322     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=60322     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=60323      tid=4076,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=60324     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60324     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60324     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60324     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=60325      tid=4094,comm=fortio: ep_poll_callback: fd=48,      127.0.0.6:44735  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e04794ec0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=60327     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=60333     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af647502a0, fd=48, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60334     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=60334     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60512     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=60512     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=60696      tid=838,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=60696      tid=838,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=60696     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60696     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38204 172.21.206.207                          15021 sys_exit_accept4 fd=49
+--------
+***sleeper-wakeup: elapsed=60696     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60696     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684d20, fd=49, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684d20, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=60715      tid=4169,comm=pilot-agent: ep_poll_callback: fd=20,      127.0.0.1:37152       127.0.0.1:15020  ESTABLISHED socket=0xffff9f5e5390c600
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=60721     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60721     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750b60, fd=20, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60721     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60721     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684d20, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=60722     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=60722     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684d20, fd=49, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=49
+--------
+***sleeper-wakeup: elapsed=60871     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=60871     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=60872     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=61018     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=61019     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=61363      tid=0,comm=swapper/0: ep_poll_callback: fd=47, 172.21.206.207:15006  172.30.207.163:52042  ESTABLISHED socket=0xffff9f5e94e01a40
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=61363      tid=0,comm=swapper/0: ep_poll_callback: fd=42, 172.21.206.207:15006  172.30.207.163:51936  ESTABLISHED socket=0xffff9f5e94e01180
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=61363     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=61363     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=61363     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=61363     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=61364     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=61364     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=61365      tid=4094,comm=fortio: ep_poll_callback: fd=45,      127.0.0.6:40003  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e5390f1c0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=61365     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=61366     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646855e0, fd=45, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=61366     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=61366     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af646857a0, fd=42, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=61381     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=61381     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=61386      tid=4094,comm=fortio: ep_poll_callback: fd=48,      127.0.0.6:44735  172.21.206.207:8080   ESTABLISHED socket=0xffff9f5e04794ec0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+--------
+***sleeper-wakeup: elapsed=61386     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=61386     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af647502a0, fd=48, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=61419     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+***** elapsed=61419     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750540, fd=47, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=61531     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=61535     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=62025     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=62045     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=62529     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=62529     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=62696      tid=1193,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=62696      tid=1193,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=62696     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=62696     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62696     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38214 172.21.206.207                          15021 sys_exit_accept4 fd=49
+--------
+***sleeper-wakeup: elapsed=62697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=62697     : tid=4450,comm=wrk:worker_1: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6490e1c0, fd=38, events=0x2
+libevent: EV_READ
+
+***waker: elapsed=62697      tid=1193,comm=kubelet: ep_poll_callback: fd=49, 172.21.206.207:15021  192.168.122.55:38214  ESTABLISHED socket=0xffff9f5e94e06900
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=62697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=62698     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62698     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=62699      tid=4136,comm=pilot-agent: ep_poll_callback: fd=20,      127.0.0.1:37152       127.0.0.1:15020  ESTABLISHED socket=0xffff9f5e5390c600
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=62699     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62699     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750b60, fd=20, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=62700     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62700     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=62700      tid=1193,comm=kubelet: ep_poll_callback: fd=49, 172.21.206.207:15021  192.168.122.55:38214  CLOSE_WAIT socket=0xffff9f5e94e06900
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=62704     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=62704     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=49
+--------
+***sleeper-wakeup: elapsed=63024     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=63024     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=63526     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=63528     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=64025     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=64030     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=64534     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=64538     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=64696      tid=1193,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=64696      tid=1193,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=64697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=64697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38224 172.21.206.207                          15021 sys_exit_accept4 fd=49
+--------
+***sleeper-wakeup: elapsed=64697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=64697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=64697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=64697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=64698      tid=4136,comm=pilot-agent: ep_poll_callback: fd=20,      127.0.0.1:37152       127.0.0.1:15020  ESTABLISHED socket=0xffff9f5e5390c600
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=64700     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=64700     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750b60, fd=20, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=64700     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=64700     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=64701     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=64701     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=49
+--------
+***sleeper-wakeup: elapsed=65039     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=65039     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=65540     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=65540     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=65878     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=65879     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=65882     , pid=4182, tid=4182,comm=envoy, event_count=1
+--------
+***sleeper-wakeup: elapsed=66043     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=66047     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=66546     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=66547     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+close fd=49
+--------
+***sleeper-wakeup: elapsed=66661     , pid=4182, tid=4182,comm=envoy, event_count=1
+***** elapsed=66661     : tid=4182,comm=envoy: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64609880, fd=49, events=0x2
+libevent: EV_READ
+
+***waker: elapsed=66673      tid=10,comm=ksoftirqd/0: ep_poll_callback: fd=49, 172.21.206.207:45004      10.96.0.10:53     ESTABLISHED socket=0xffff9f5e53b79200
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4182, wakeupedTIDComm=envoy
+--------
+***sleeper-wakeup: elapsed=66673     , pid=4182, tid=4182,comm=envoy, event_count=1
+***** elapsed=66673     : tid=4182,comm=envoy: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64609880, fd=49, events=0x2
+libevent: EV_READ
+close fd=49
+
+***waker: elapsed=66696      tid=838,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=66696      tid=838,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=66696     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=66696     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38234 172.21.206.207                          15021 sys_exit_accept4 fd=49
+--------
+***sleeper-wakeup: elapsed=66697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=66697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=66697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=66697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=66698      tid=4405,comm=pilot-agent: ep_poll_callback: fd=20,      127.0.0.1:37152       127.0.0.1:15020  ESTABLISHED socket=0xffff9f5e5390c600
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=66699     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=66699     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750b60, fd=20, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=66701     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=66701     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=66702     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=66702     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=49
+--------
+***sleeper-wakeup: elapsed=66842     , pid=4182, tid=4182,comm=envoy, event_count=1
+***** elapsed=66842     : tid=4182,comm=envoy: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64566b60, fd=41, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=66848     , pid=4182, tid=4182,comm=envoy, event_count=1
+***** elapsed=66848     : tid=4182,comm=envoy: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64566b60, fd=41, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=67042     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=67042     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=67542     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=67545     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=68041     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=68041     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=68542     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=68542     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+
+***waker: elapsed=68697      tid=169239,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=68697      tid=169239,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=68697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=68697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+inet_csk_accept: 192.168.122.55                          38244 172.21.206.207                          15021 sys_exit_accept4 fd=49
+--------
+***sleeper-wakeup: elapsed=68697     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=68697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=68705     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=68705     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+
+***waker: elapsed=68705      tid=4405,comm=pilot-agent: ep_poll_callback: fd=20,      127.0.0.1:37152       127.0.0.1:15020  ESTABLISHED socket=0xffff9f5e5390c600
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+--------
+***sleeper-wakeup: elapsed=68709     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=68709     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750b60, fd=20, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=68716     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=68716     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+--------
+***sleeper-wakeup: elapsed=68716     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+***** elapsed=68716     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=49
+--------
+***sleeper-wakeup: elapsed=69063     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=69063     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=69568     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=69568     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=70066     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=70066     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+--------
+***sleeper-wakeup: elapsed=70566     , pid=4182, tid=4449,comm=wrk:worker_0, event_count=1
+--------
+***sleeper-wakeup: elapsed=70566     , pid=4182, tid=4450,comm=wrk:worker_1, event_count=1
+^C***** elapsed=70697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af6486fce0, fd=34, events=0x2
+libevent: EV_READ
+sys_exit_accept4 fd=49
+***** elapsed=70697     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=70699     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=70699     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64750b60, fd=20, events=0x26
+libevent: EV_READ
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=70701     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0x24
+libevent: EV_WRITE
+libevent: EV_ET
+***** elapsed=70701     : tid=4449,comm=wrk:worker_0: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()
+FileEventImpl*=0x55af64684c40, fd=49, events=0xa4
+libevent: EV_WRITE
+libevent: EV_ET
+libevent: EV_CLOSED
+close fd=49
+
+***waker: elapsed=70696      tid=1249,comm=kubelet: ep_poll_callback: fd=38,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4450, wakeupedTIDComm=wrk:worker_1
+
+***waker: elapsed=70696      tid=1249,comm=kubelet: ep_poll_callback: fd=34,        0.0.0.0:15021         0.0.0.0:0      LISTEN socket=0xffff9f5e5390abc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+
+***waker: elapsed=70701      tid=1249,comm=kubelet: ep_poll_callback: fd=49, 172.21.206.207:15021  192.168.122.55:38256  CLOSE_WAIT socket=0xffff9f5e94e02bc0
+try_to_wake_up: wakeupedPID=4182, wakeupedTID=4449, wakeupedTIDComm=wrk:worker_0
+
+
+@scope_ep_poll_callback[3156]: (30, 192.168.122.55, 47178, 172.21.206.202, 3000, 8, -106245931661120)
+@scope_ep_poll_callback[4405]: (20, 127.0.0.1, 37152, 127.0.0.1, 15020, 1, -106247498971648)
+@scope_ep_poll_callback[1695824]: (7, 127.0.0.1, 42134, 127.0.0.1, 9099, 1, -106245933620480)
+
+@wakeupedTaskToWakeupedTid[4449]: 1
+@wakeupedTaskToWakeupedTid[4450]: 1
+root@bpftrace:/home/labile/pub-diy/low-tec/network/kernel-net-stack/bpf-trace-net-stack# 

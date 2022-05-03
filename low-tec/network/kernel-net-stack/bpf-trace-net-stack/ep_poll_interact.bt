@@ -157,7 +157,12 @@ kprobe:ep_poll_callback
 
     $tcp_state = $sk->__sk_common.skc_state;
 
-    @scope_ep_poll_callback[tid]=($fd,$saddr,$lport,$daddr,$dport,$tcp_state);
+    @scope_ep_poll_callback[tid]=($fd,$saddr,$lport,$daddr,$dport,$tcp_state,$sk);
+}
+
+kretprobe:ep_poll_callback
+{
+    delete(@scope_ep_poll_callback[tid]);
 }
 
 kprobe:try_to_wake_up
@@ -170,20 +175,18 @@ kprobe:try_to_wake_up
         $s = @scope_ep_poll_callback[tid];
 
         printf("\n");
-        printf("***waker: tid=%d,comm=%s: ep_poll_callback: fd=%d, %14s:%-6d %14s:%-6d %6s\n", 
-            tid, comm, 
-            $s.0, $s.1, $s.2, $s.3, $s.4, @tcp_states[$s.5]);    
+        printf("***waker: elapsed=%-10u tid=%d,comm=%s: ep_poll_callback: fd=%d, %14s:%-6d %14s:%-6d %6s socket=%p\n", 
+            elapsed / 1000000, tid, comm, 
+            $s.0, $s.1, $s.2, $s.3, $s.4, @tcp_states[$s.5], $s.6);    
         // printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
         //     $daddr, $dport, $statestr);   
 
-        @wakeupedTaskToWakeupedTid[$taskToWakeuped->pid]=1;
+        // @wakeupedTaskToWakeupedTid[$taskToWakeuped->pid]=1;
         printf("try_to_wake_up: wakeupedPID=%d, wakeupedTID=%d, wakeupedTIDComm=%s\n", 
             $taskToWakeuped->tgid, $taskToWakeuped->pid, $taskToWakeuped->comm);    
     }
 
- 
-
-    delete(@scope_ep_poll_callback[tid]);
+    // delete(@scope_ep_poll_callback[tid]);
 }
 
 
@@ -196,10 +199,93 @@ tracepoint:syscalls:sys_exit_epoll_wait
     }
     // if(@wakeupedTaskToWakeupedTid[tid]) {
         printf("--------\n");
-        printf("***sleeper: pid=%d, tid=%d,comm=%s, event_count=%d\n", pid, tid, comm, args->ret);
+        printf("***sleeper-wakeup: elapsed=%-10u, pid=%d, tid=%d,comm=%s, event_count=%d\n", elapsed / 1000000, pid, tid, comm, args->ret);
     // }
-    delete(@wakeupedTaskToWakeupedTid[tid]);
+    // delete(@wakeupedTaskToWakeupedTid[tid]);
 }
+
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
+/pid == ${ENVOY_PID}/ 
+{
+       $fd = arg0;
+        $libevent_events = arg1;
+
+        printf("***** elapsed=%-10u: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()\n", 
+            elapsed / 1000000, tid, comm);
+        printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, $libevent_events);
+
+        if( $libevent_events & (uint16)0x01 /*EV_TIMEOUT*/ ) {
+                printf("libevent: EV_TIMEOUT\n");
+        }
+        if( $libevent_events & (uint16)0x02 /*EV_TIMEOUT*/ ) {
+                printf("libevent: EV_READ\n");
+        }
+        if( $libevent_events & (uint16)0x04 /*EV_TIMEOUT*/ ) {
+                printf("libevent: EV_WRITE\n");
+        }
+        if( $libevent_events & (uint16)0x20 /*EV_TIMEOUT*/ ) {
+                printf("libevent: EV_ET\n");
+        }
+        if( $libevent_events & (uint16)0x80 /*EV_TIMEOUT*/ ) {
+                printf("libevent: EV_CLOSED\n");
+        }
+
+}
+
+kretprobe:inet_csk_accept
+/pid==${ENVOY_PID} /
+{
+	$sk = (struct sock *)retval;
+	$inet_family = $sk->__sk_common.skc_family;
+
+	if ($inet_family == AF_INET) {
+		// initialize variable type:
+		$daddr = ntop(0);
+		$saddr = ntop(0);
+        $daddr = ntop($sk->__sk_common.skc_daddr);
+        $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+		
+		$lport = $sk->__sk_common.skc_num;
+
+		$dport = $sk->__sk_common.skc_dport;
+		$qlen  = $sk->sk_ack_backlog;
+		$qmax  = $sk->sk_max_ack_backlog;
+
+		// Destination port is big endian, it must be flipped
+		$dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+		printf("inet_csk_accept: %-39s %-5d %-39s %-5d ", $daddr, $dport, $saddr, $lport);
+	}
+}
+
+tracepoint:syscalls:sys_exit_accept4
+/pid==${ENVOY_PID} /
+{
+	$fd = args->ret;
+	if( $fd < 0 ) {
+		return;
+	}
+	printf("sys_exit_accept4 fd=%d\n", $fd);
+}
+
+tracepoint:syscalls:sys_enter_close
+/pid==${ENVOY_PID} /
+{
+	$fd = args->fd;
+	printf("close fd=%d\n", $fd);
+}
+
+
+// tracepoint:syscalls:sys_enter_epoll_wait
+// /pid == ${ENVOY_PID}/
+// {
+//     // if(@wakeupedTaskToWakeupedTid[tid]) {
+//         printf("--------\n");
+//         printf("***sleeper-sleep: pid=%d, tid=%d,comm=%s\n", pid, tid, comm);
+//     // }
+//     // delete(@wakeupedTaskToWakeupedTid[tid]);
+// }
+
 
 END
 {
