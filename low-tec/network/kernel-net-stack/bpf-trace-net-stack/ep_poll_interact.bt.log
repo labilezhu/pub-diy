@@ -4,6 +4,7 @@ Downstream POD IP: 172.30.207.163
 
 POD IP: 172.21.206.207
 POD Sidecar(Envoy) Inbound listen port: 127.0.0.1:15006
+POD Sidecar(Envoy) PID: 4182
 
 Upstream endpoint: 172.21.206.207:8080 (same POD of sidecar)
 
