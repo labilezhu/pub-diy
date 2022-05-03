@@ -6,7 +6,7 @@ args: $1=ENVOY_PID
 */
 
 /*
-cd /home/labile/pub-diy/low-tec/network/kernel-net-stack/bpf-trace-net-stack
+cd ~/pub-diy/low-tec/network/kernel-net-stack/bpf-trace-net-stack
 export SCRIPT_HOME=`pwd`
 export BT=ep_poll_interact.bt
 export ENVOY_PID=$PID
@@ -178,8 +178,6 @@ kprobe:try_to_wake_up
         printf("***waker: elapsed=%-10u tid=%d,comm=%s: ep_poll_callback: fd=%d, %14s:%-6d %14s:%-6d %6s socket=%p\n", 
             elapsed / 1000000, tid, comm, 
             $s.0, $s.1, $s.2, $s.3, $s.4, @tcp_states[$s.5], $s.6);    
-        // printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
-        //     $daddr, $dport, $statestr);   
 
         // @wakeupedTaskToWakeupedTid[$taskToWakeuped->pid]=1;
         printf("try_to_wake_up: wakeupedPID=%d, wakeupedTID=%d, wakeupedTIDComm=%s\n", 
@@ -275,21 +273,7 @@ tracepoint:syscalls:sys_enter_close
 	printf("close fd=%d\n", $fd);
 }
 
-
-// tracepoint:syscalls:sys_enter_epoll_wait
-// /pid == ${ENVOY_PID}/
-// {
-//     // if(@wakeupedTaskToWakeupedTid[tid]) {
-//         printf("--------\n");
-//         printf("***sleeper-sleep: pid=%d, tid=%d,comm=%s\n", pid, tid, comm);
-//     // }
-//     // delete(@wakeupedTaskToWakeupedTid[tid]);
-// }
-
-
 END
 {
     clear(@tcp_states);
-    // clear(@eventpoll2pid);
-    // clear(@eventpoll2tid);
 }
