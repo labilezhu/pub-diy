@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.bt": "c",
+        "in.h": "c",
+        "socket.h": "c"
+    }
+}

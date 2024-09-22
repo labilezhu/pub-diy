@@ -1,0 +1,166 @@
+#!/usr/local/bin/bpftrace
+
+
+/**
+
+readelf -s --wide  ~/envoy.mybuild | egrep 'ActiveTcpListener.*newConnection'
+
+function getEnvoyPID()
+{
+    export PODID=`crictl pods | grep forti | head -n1 | awk '{print $1;}'`
+    export CONTAINERID=`crictl ps | grep $PODID | grep proxy | awk '{print $1;}'`
+    export CPID=`crictl inspect $CONTAINERID 2> /dev/null | jq -r -j .info.pid`
+    export PID=`pgrep --ns $CPID envoy`
+    echo $PID
+}
+
+export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
+
+export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
+
+cat $SCRIPT_HOME/trace-filter-match-v3.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
+bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
+ */
+
+
+
+/**
+void ActiveTcpSocket::newConnection() {
+    ...
+    listener_.newConnection(std::move(socket_), std::move(stream_info_));
+}
+
+readelf -s --wide  ~/envoy.mybuild | egrep 'ActiveTcpSocket.*newConnection'
+240238: 00000000032cc510   510 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server15ActiveTcpSocket13newConnectionEv
+
+
+*/
+
+
+struct vtable {
+  long long int parent_offset;
+  void* typeinfo;
+  // void* thunks[nfuncs];
+  char* anchor; // aka thunks[0], this is where the vtbl* in the class points to
+};
+// (gdb) print sizeof(long long int)
+// $1 = 8
+
+
+/*
+(gdb) ptype \o struct std::__1::shared_ptr<Envoy::Network::SocketAddressProvider const>
+\* offset    |  size *\  type = class std::__1::shared_ptr<Envoy::Network::SocketAddressProvider const> [with _Tp = const Envoy::Network::SocketAddressProvider] {
+                         private:
+\*    0      |     8 *\    _Tp *__ptr_;
+\*    8      |     8 *\    std::__1::__shared_weak_count *__cntrl_;
+
+                           \* total size (bytes):   16 *\
+                         }
+*/
+struct SocketAddressProviderSharedPtr {
+    // __ptr_
+};
+
+
+/*
+ptype /o struct Envoy::StreamInfo::StreamInfoImpl
+\* offset    |  size *\  type = struct Envoy::StreamInfo::StreamInfoImpl : public Envoy::StreamInfo::StreamInfo {
+\*  568      |    16 *\    const Envoy::Network::SocketAddressProviderSharedPtr downstream_address_provider_;
+\*  776      |    24 *\    std::__1::string filter_chain_name_;
+
+*/
+struct StreamInfo {
+    char padd[568];
+    struct SocketAddressProviderSharedPtr downstream_address_provider_;
+    char padd2[776-16-568];
+    char filter_chain_name[64];
+};
+
+/*
+(gdb) ptype \o struct Envoy::Server::ActiveTcpSocket
+\* offset    |  size *\  type = struct Envoy::Server::ActiveTcpSocket : public Envoy::Network::ListenerFilterManager, public Envoy::Network::ListenerFilterCallbacks
+        , public Envoy::LinkedObject<Envoy::Server::ActiveTcpSocket>, public Envoy::Event::DeferredDeletable, public Envoy::Logger::Loggable<Envoy::Logger::Id::conn_handler> {
+\*   40      |     8 *\    Envoy::Server::ActiveTcpListener &listener_;
+\*   48      |     8 *\    Envoy::Network::ConnectionSocketPtr socket_;
+\*  104      |     8 *\    class std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> > [with _Tp = Envoy::StreamInfo::StreamInfo, 
+         _Dp = std::__1::default_delete<Envoy::StreamInfo::StreamInfo>] {
+                             private:
+\*  104      |     8 *\        class std::__1::__compressed_pair<_Tp*, _Dp> [with _T1 = _Tp *, _T2 = _Dp] : private std::__1::__compressed_pair_elem<_Tp*, 0, false>
+        , private std::__1::__compressed_pair_elem<_Dp, 1, true> {
+
+                                   \* total size (bytes):    8 *\
+                               } __ptr_;
+
+                               \* total size (bytes):    8 *\
+                           } stream_info_;
+\*  112      |     1 *\    bool connected_;
+\* XXX  7-byte padding *\
+
+                           \* total size (bytes):  120 *\
+                         }
+*/
+struct ActiveTcpSocket {
+    void* primary_vtbl;   // vtbl for caf::memory_managed and caf::mailbox_element
+    char padd[104-8];
+    struct StreamInfo* stream_info_;
+};
+
+
+BEGIN
+{
+}
+
+
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImplC2ENS_4Http8ProtocolERNS_10TimeSourceERKNSt3__110shared_ptrIKNS_7Network21SocketAddressProviderEEENS7_INS0_11FilterStateEEENSE_8LifeSpanE 
+/pid == ENVOY_PID/ 
+{ 
+    // $streamInfo = reg("di");//%rdi	used to pass 1st argument to functions -> this
+    $streamInfo = arg0;//%rdi	used to pass 1st argument to functions -> this
+    printf("streamInfo->%p\n", $streamInfo);
+}
+
+
+uretprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImplC2ENS_4Http8ProtocolERNS_10TimeSourceERKNSt3__110shared_ptrIKNS_7Network21SocketAddressProviderEEENS7_INS0_11FilterStateEEENSE_8LifeSpanE 
+/pid == ENVOY_PID/ 
+{ 
+    $streamInfo = retval;//%rdi	used to pass 1st argument to functions -> this
+    printf("retval:streamInfo->%p\n", $streamInfo);
+    printf("retval:reg(\"di\")=%p\n", reg("di"));
+}
+
+
+
+END
+{
+    // clear(@newConnection_this);
+}
+
+
+/**
+ * 
+cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen 
+
+curl -i -v https://172.21.206.195:8080/fortio
+
+
+tid:4416: Got setFilterChainName=0.0.0.0_8080, lenght=12
+ 
+        Envoy::StreamInfo::StreamInfoImpl::setFilterChainName(absl::string_view)+0
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Extensions::ListenerFilters::TlsInspector::Filter::done(bool)+380
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+export INGRESS_HOST=172.21.206.195
+export SECURE_INGRESS_PORT=8080
+curl -v -HHost:fortio-server.idm-mark.com --resolve "fortio-server.idm-mark.com:$SECURE_INGRESS_PORT:$INGRESS_HOST" \
+"http://fortio-server.idm-mark.com:$SECURE_INGRESS_PORT/fortio"
+
+
+ */

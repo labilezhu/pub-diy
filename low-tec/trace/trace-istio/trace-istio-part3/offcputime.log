@@ -1,0 +1,349 @@
+root@bpftrace:/usr/share/bcc/tools# ./offcputime  10  -t 4569
+Tracing off-CPU time (us) of TID 4569 by user + kernel stack for 10 secs.
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    operator new(unsigned long)
+    std::__1::__list_iterator<Envoy::Http::HeaderMapImpl::HeaderEntryImpl, void*> Envoy::Http::HeaderMapImpl::HeaderList::insert<Envoy::Http::LowerCaseString const&, Envoy::Http::HeaderString>(Envoy::Http::LowerCaseString const&, Envoy::Http::HeaderString&&)
+    Envoy::Http::HeaderMapImpl::maybeCreateInline(Envoy::Http::HeaderMapImpl::HeaderEntryImpl**, Envoy::Http::LowerCaseString const&, Envoy::Http::HeaderString&&)
+    Envoy::Http::HeaderMapImpl::insertByKey(Envoy::Http::HeaderString&&, Envoy::Http::HeaderString&&)
+    Envoy::Http::Http1::ConnectionImpl::completeLastHeader()
+    Envoy::Http::Http1::ConnectionImpl::onHeaderField(char const*, unsigned long)
+    Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*, char const*, unsigned long)#2}::__invoke(http_parser*, char const*, unsigned long)
+    http_parser_execute
+    Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)
+    Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)
+    Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::Http1::ClientConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)
+    Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        4
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    absl::strings_internal::memmatch(char const*, unsigned long, char const*, unsigned long)
+    absl::string_view::find(absl::string_view, unsigned long) const
+    std::__1::vector<absl::strings_internal::ViableSubstitution, std::__1::allocator<absl::strings_internal::ViableSubstitution> > absl::strings_internal::FindSubstitutions<absl::flat_hash_map<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, absl::container_internal::StringHash, absl::container_internal::StringHashEq::Eq, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > > > >(absl::string_view, absl::flat_hash_map<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, absl::container_internal::StringHash, absl::container_internal::StringHashEq::Eq, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > > > const&)
+    std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > absl::StrReplaceAll<absl::flat_hash_map<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, absl::container_internal::StringHash, absl::container_internal::StringHashEq::Eq, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > > > >(absl::string_view, absl::flat_hash_map<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> >, absl::container_internal::StringHash, absl::container_internal::StringHashEq::Eq, std::__1::allocator<std::__1::pair<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > > > const&)
+    Envoy::StreamInfo::StreamInfoImpl::setResponseCodeDetails(absl::string_view)
+    non-virtual thunk to Envoy::Http::ActiveStreamDecoderFilter::encodeHeaders(std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, bool, absl::string_view)
+    Envoy::Router::Filter::onUpstreamHeaders(unsigned long, std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, Envoy::Router::UpstreamRequest&, bool)
+    Envoy::Router::UpstreamRequest::decodeHeaders(std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, bool)
+    Envoy::Http::Http1::ActiveClient::StreamWrapper::decodeHeaders(std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, bool)
+    Envoy::Http::Http1::ClientConnectionImpl::onHeadersCompleteBase()
+    non-virtual thunk to Envoy::Http::Http1::ClientConnectionImpl::onHeadersCompleteBase()
+    Envoy::Http::Http1::ConnectionImpl::onHeadersComplete()
+    Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#2}::__invoke(http_parser*)
+    http_parser_execute
+    Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)
+    Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)
+    Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::Http1::ClientConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)
+    Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        4
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    __vdso_clock_gettime
+    -                wrk:worker_1 (4569)
+        6
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    Envoy::Stats::NullCounterImpl::add(unsigned long)
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        6
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    Envoy::Stats::SymbolTableImpl::join(absl::InlinedVector<Envoy::Stats::StatName, 8ul, std::__1::allocator<Envoy::Stats::StatName> > const&) const
+    Envoy::Http::CodeStatsImpl::incCounter(Envoy::Stats::Scope&, Envoy::Stats::StatName, Envoy::Stats::StatName) const
+    Envoy::Http::CodeStatsImpl::chargeBasicResponseStat(Envoy::Stats::Scope&, Envoy::Stats::StatName, Envoy::Http::Code, bool) const
+    Envoy::Http::CodeStatsImpl::chargeResponseStat(Envoy::Http::CodeStats::ResponseStatInfo const&, bool) const
+    Envoy::Router::Filter::chargeUpstreamCode(unsigned long, Envoy::Http::ResponseHeaderMap const&, std::__1::shared_ptr<Envoy::Upstream::HostDescription const>, bool)
+    Envoy::Router::Filter::onUpstreamHeaders(unsigned long, std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, Envoy::Router::UpstreamRequest&, bool)
+    Envoy::Router::UpstreamRequest::decodeHeaders(std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, bool)
+    Envoy::Http::Http1::ActiveClient::StreamWrapper::decodeHeaders(std::__1::unique_ptr<Envoy::Http::ResponseHeaderMap, std::__1::default_delete<Envoy::Http::ResponseHeaderMap> >&&, bool)
+    Envoy::Http::Http1::ClientConnectionImpl::onHeadersCompleteBase()
+    non-virtual thunk to Envoy::Http::Http1::ClientConnectionImpl::onHeadersCompleteBase()
+    Envoy::Http::Http1::ConnectionImpl::onHeadersComplete()
+    Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#2}::__invoke(http_parser*)
+    http_parser_execute
+    Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)
+    Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)
+    Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::Http1::ClientConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)
+    Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        8
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    Envoy::Http::HeaderMapImpl::StaticLookupTable<Envoy::Http::ResponseHeaderMap>::lookup(Envoy::Http::HeaderMapImpl&, absl::string_view)
+    Envoy::Http::TypedHeaderMapImpl<Envoy::Http::ResponseHeaderMap>::staticLookup(absl::string_view)
+    Envoy::Http::HeaderMapImpl::insertByKey(Envoy::Http::HeaderString&&, Envoy::Http::HeaderString&&)
+    Envoy::Http::Http1::ConnectionImpl::completeLastHeader()
+    Envoy::Http::Http1::ConnectionImpl::onHeadersComplete()
+    Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#2}::__invoke(http_parser*)
+    http_parser_execute
+    Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)
+    Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)
+    Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::Http1::ClientConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)
+    Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        9
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __write
+    event_callback_activate_nolock_
+    event_active
+    std::__1::__shared_ptr_pointer<std::__1::function<void ()>*, Envoy::ThreadLocal::InstanceImpl::runOnAllThreads(std::__1::function<void ()>, std::__1::function<void ()>)::$_5, std::__1::allocator<std::__1::function<void ()> > >::__on_zero_shared()
+    std::__1::__function::__func<Envoy::ThreadLocal::InstanceImpl::runOnAllThreads(std::__1::function<void ()>, std::__1::function<void ()>)::$_6, std::__1::allocator<Envoy::ThreadLocal::InstanceImpl::runOnAllThreads(std::__1::function<void ()>, std::__1::function<void ()>)::$_6>, void ()>::destroy()
+    Envoy::Event::DispatcherImpl::runPostCallbacks()
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        14
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    epoll_wait
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        20
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    absl::string_view::find_first_not_of(absl::string_view, unsigned long) const
+    Envoy::StringUtil::ltrim(absl::string_view)
+    Envoy::Http::Http1::ConnectionImpl::onHeaderValue(char const*, unsigned long)
+    Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*, char const*, unsigned long)#3}::__invoke(http_parser*, char const*, unsigned long)
+    http_parser_execute
+    Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)
+    Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)
+    Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::Http1::ClientConnectionImpl::dispatch(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)
+    Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)
+    Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        80
+
+    finish_task_switch
+    preempt_schedule_common
+    _cond_resched
+    aa_sk_perm
+    apparmor_socket_recvmsg
+    security_socket_recvmsg
+    sock_recvmsg
+    sock_read_iter
+    do_iter_readv_writev
+    do_iter_read
+    vfs_readv
+    do_readv
+    __x64_sys_readv
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    readv
+    Envoy::Network::IoSocketHandleImpl::readv(unsigned long, Envoy::Buffer::RawSlice*, unsigned long)
+    Envoy::Network::IoSocketHandleImpl::read(Envoy::Buffer::Instance&, absl::optional<unsigned long>)
+    Envoy::Network::RawBufferSocket::doRead(Envoy::Buffer::Instance&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        148
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    prepare_exit_to_usermode
+    swapgs_restore_regs_and_return_to_usermode
+    Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)
+    Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)
+    Envoy::Network::ConnectionImpl::onReadReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        382
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    __pthread_mutex_unlock
+    std::__1::__function::__func<Envoy::ThreadLocal::InstanceImpl::runOnAllThreads(std::__1::function<void ()>, std::__1::function<void ()>)::$_6, std::__1::allocator<Envoy::ThreadLocal::InstanceImpl::runOnAllThreads(std::__1::function<void ()>, std::__1::function<void ()>)::$_6>, void ()>::destroy()
+    Envoy::Event::DispatcherImpl::runPostCallbacks()
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        842
+
+    finish_task_switch
+    preempt_schedule_common
+    _cond_resched
+    mutex_lock
+    ep_scan_ready_list.constprop.0
+    ep_poll
+    do_epoll_wait
+    __x64_sys_epoll_wait
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    epoll_wait
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        1593
+
+    finish_task_switch
+    schedule
+    exit_to_usermode_loop
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    writev
+    Envoy::Network::IoSocketHandleImpl::writev(Envoy::Buffer::RawSlice const*, unsigned long)
+    Envoy::Network::IoSocketHandleImpl::write(Envoy::Buffer::Instance&)
+    Envoy::Network::RawBufferSocket::doWrite(Envoy::Buffer::Instance&, bool)
+    Envoy::Network::ConnectionImpl::onWriteReady()
+    Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)
+    std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)
+    std::__1::__function::__func<Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_0, std::__1::allocator<Envoy::Event::FileEventImpl::FileEventImpl(Envoy::Event::DispatcherImpl&, int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_0>, void ()>::operator()()
+    event_process_active_single_queue
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        10965
+
+    finish_task_switch
+    schedule
+    schedule_hrtimeout_range_clock
+    schedule_hrtimeout_range
+    ep_poll
+    do_epoll_wait
+    __x64_sys_epoll_wait
+    do_syscall_64
+    entry_SYSCALL_64_after_hwframe
+    epoll_wait
+    event_base_loop
+    Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)
+    Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)
+    start_thread
+    -                wrk:worker_1 (4569)
+        9789165

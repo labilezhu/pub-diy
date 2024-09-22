@@ -1,0 +1,90 @@
+########## 1.setsockopt() ##########
+comm:envoy.istio.1.1 : setsockopt: fd=22, optname=2, optval=1, optlen=4. stack:
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<...)0> >::setPrebindSocketOptions()+50
+...
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+...
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(...)+133
+...
+        Envoy::Server::Configuration::MainImpl::initialize(...)+2135
+        Envoy::Server::InstanceImpl::initialize(...)+14470
+...
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## 2.bind() ##########
+comm:envoy.istio.1.1 : bind AF_INET: ip:0.0.0.0          port:10000 fd=22
+stack:
+        bind+11
+        Envoy::Network::IoSocketHandleImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+101
+        Envoy::Network::SocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+383
+        Envoy::Network::ListenSocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+77
+        Envoy::Network::ListenSocketImpl::setupSocket(...)+76
+...
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+...
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(...)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory...
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(...)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(...)+409
+        Envoy::Server::Configuration::MainImpl::initialize(...)+2135
+        Envoy::Server::InstanceImpl::initialize(...)+14470
+...
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## 3.exit accept4() ##########
+accept4: pid:219185 comm:wrk:worker_1     family:2   peerIP:127.0.0.1        peerPort:38686 fd:20
+stack:
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(...)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(...)+19
+        start_thread+217
+
+
+########## 4.setsockopt() ##########
+comm:wrk:worker_1    : setsockopt: fd=20, optname=1, optval=1, optlen=4. stack:
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::ConnectionImpl::noDelay(bool)+143
+        Envoy::Server::ActiveTcpConnection::ActiveTcpConnection(...)+141
+        Envoy::Server::ActiveTcpListener::newConnection(...)+650
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Server::ActiveTcpListener::onAcceptWorker(...)+163
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+856
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(...)+19
+        start_thread+217
+
+
+########## 5.exit accept4() ##########
+accept4: pid:219185 comm:wrk:worker_1     family:2   peerIP:127.0.0.1        peerPort:38686 fd:-11
+stack:
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(...)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(...)+19
+        start_thread+217

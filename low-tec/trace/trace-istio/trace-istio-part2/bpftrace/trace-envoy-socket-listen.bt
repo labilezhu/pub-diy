@@ -1,0 +1,145 @@
+#!usr/bin/bpftrace
+
+
+/**
+
+export SCRIPT_HOME=`pwd`
+export bpftrace_image=cndt-bcc-ub
+
+
+docker run -it --rm --init --privileged --name bpftrace -h bpftrace \
+    --pid host \
+    --net host \
+    -e SCRIPT_HOME=$SCRIPT_HOME \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /sys:/sys:rw \
+    -v /usr/src:/usr/src:rw \
+    -v /lib/modules:/lib/modules:rw \
+    -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
+    $bpftrace_image \
+    bpftrace 
+
+docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
+    --pid host \
+    --net host \
+    -e SCRIPT_HOME=$SCRIPT_HOME \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /sys:/sys:rw \
+    -v /usr/src:/usr/src:rw \
+    -v /lib/modules:/lib/modules:ro \
+    -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
+    $bpftrace_image \
+    bpftrace  ${SCRIPT_HOME}/trace-envoy-socket-listen.bt
+
+
+ */
+
+
+#include <linux/in.h>
+#include <linux/in6.h>
+
+BEGIN
+{
+}
+
+tracepoint:syscalls:sys_enter_execve
+{
+       if( str(args->argv[0]) == "/usr/local/bin/envoy" ) {
+              @watchedpid[pid] = pid;
+              printf("watched envoy pid: %d\n", pid);
+       }
+}
+
+tracepoint:syscalls:sys_enter_setsockopt
+/@watchedpid[pid]/
+{
+       // socket opts: https://elixir.bootlin.com/linux/v5.16.3/source/include/uapi/linux/tcp.h#L92     
+       $level = args->level;
+       $fd = args->fd;
+       $optname = args->optname;
+       $optval = args->optval;
+       $optval_int = *$optval;
+       $optlen = args->optlen;
+       printf("\n########## setsockopt() ##########\n");
+       printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
+       @fd2sockopt[$fd] = ($level, $optname, $optval_int);
+}
+
+
+tracepoint:syscalls:sys_enter_bind
+/@watchedpid[pid]/
+{
+       $sa = (struct sockaddr *)args->umyaddr;
+       $fd = args->fd;
+       printf("\n########## bind() ##########\n");
+
+       if ($sa->sa_family == AF_INET || $sa->sa_family == AF_INET6) {
+
+              if ($sa->sa_family == AF_INET) { //IPv4
+                     $s = (struct sockaddr_in *)$sa;
+                     $port = ($s->sin_port >> 8) |
+                         (($s->sin_port << 8) & 0xff00);
+                     $bind_ip = ntop(AF_INET, $s->sin_addr.s_addr);                         
+                     printf("comm:%-16s: bind AF_INET: ip:%-16s port:%-5d fd=%d \n", comm,
+                         $bind_ip,
+                         $port, $fd);
+                     @fd2bind[$fd] = ($bind_ip, $port);
+                     printf("stack: %s\n", ustack);
+              } else { //IPv6
+                     printf("not support ipv6\n");
+              }
+
+       }      
+}
+
+tracepoint:syscalls:sys_enter_listen
+/@watchedpid[pid]/
+{
+       printf("\n########## listen() ##########\n");
+
+       $fd = args->fd;
+       $backlog = args->backlog;
+
+       @fd2listen[$fd] = 1;
+       $bind = @fd2bind[$fd];
+       if( $bind.1 == 0 ) {
+              $old_fd = @dup_fd_new2old[$fd];
+              if( $old_fd ) {
+                     printf("comm:%-16s: listen() on an dupliated old_fd=%d \n", comm, $old_fd);
+                     $bind = @fd2bind[$old_fd];
+              }
+       }
+       printf("comm:%-16s: listen() fd=%d, ip:%-16s, port:%-5d \n", comm, $fd, $bind.0, $bind.1);
+       printf("stack: %s\n", ustack);
+}
+
+tracepoint:syscalls:sys_enter_dup
+/@watchedpid[pid]/
+{
+       $fildes = args->fildes;
+       @duping_fd_cache[tid]= $fildes;
+}
+
+
+
+tracepoint:syscalls:sys_exit_dup
+/@watchedpid[pid] && @duping_fd_cache[tid]/
+{
+       $duping_fd = @duping_fd_cache[tid];
+       delete(@duping_fd_cache[tid]);
+
+       $new_fd = args->ret;
+       @dup_fd_old2new[$duping_fd]=$new_fd;
+       @dup_fd_new2old[$new_fd]=$duping_fd;
+
+       printf("\n########## sys_enter_dup() ##########\n");
+       printf("comm:%-16s: duping_fd=%d, new_fd=%d \n", comm, $duping_fd, $new_fd);
+       printf("stack: %s\n", ustack);
+}
+
+
+END
+{
+       clear(@watchedpid);
+       clear(@dup_fd_old2new);
+}

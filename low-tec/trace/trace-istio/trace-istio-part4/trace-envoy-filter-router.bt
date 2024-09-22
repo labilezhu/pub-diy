@@ -1,0 +1,654 @@
+#!usr/bin/bpftrace
+/*
+IMPORT-ENV: $ENVOY_PID
+args: $1=ENVOY_PID
+*/
+
+/*
+
+#export PODID=`sudo crictl  pods | grep fortio-server | egrep '\bReady' | awk '{print $1}'`
+#export CONTAINERID=`sudo crictl ps | grep $PODID | grep istio-proxy |  awk '{print $1}'`
+
+kubectl -n idm-mark exec -it fortio-server -c  istio-proxy  -- bash -c 'ls -l /proc/`pgrep envoy`/ns/pid'
+lrwxrwxrwx 1 istio-proxy istio-proxy 0 Mar 31 09:18 /proc/15/ns/pid -> 'pid:[4026532799]'
+pgrep envoy | tee /dev/fd/2 | xargs -L 1 -I '{}' sudo ls -l /proc/'{}'/ns 
+
+export PID=4215
+export SCRIPT_HOME=`pwd`
+export bpftrace_image=cndt-bcc-ub
+
+docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
+    --pid host \
+    --net host \
+    -e SCRIPT_HOME=$SCRIPT_HOME \
+    -e PID=$PID \
+    -e ENVOY_PID=$PID \
+    -e BT=trace-envoy-filter-router.bt \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /sys:/sys:rw \
+    -v /usr/src:/usr/src:rw \
+    -v /lib/modules:/lib/modules:ro \
+    -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
+    $bpftrace_image \
+    ${SCRIPT_HOME}/warp-bt.sh $PID
+*/
+
+
+/*
+1. BPF Map 说明:
+
+1.1. range tid map
+- @watchedWakeRound[tid]=tid
+       - sys_exit_accept4
+       - FileEventImpl*assignEvents*
+- @fdFired[tid]=$fd;
+       - uprobe: *FileEventImpl*assignEvents*
+       - uretprobe: *FileEventImpl*assignEvents*
+
+1.2. fd map
+- @fd2sockpair[$fd]=@sockpair[tid]
+       - sys_exit_accept4
+       - sys_enter_close
+- @fd2sockopt[$fd, $level, $optname, $optval_int] = 1
+       - sys_enter_setsockopt
+
+- @filterManagerImpl2fd[arg0] = @fdFired[tid] // filterManagerImpl to downstream fd
+- @fd2filterManagerImpl[$fd] = arg0 
+- @fd2filterManagerImpl2[$fd] = arg0
+- @downFD2upFD[$downFD] = $fd; //downstream fd to upstream fd
+       - sys_enter_epoll_ctl
+- @upFD[$fd] = $fd; //upstream fd list
+       - sys_enter_epoll_ctl
+
+1.3. temp tid map
+- @sockpair[tid]=($sk->__sk_common.skc_daddr, $dport, $sk->__sk_common.skc_rcv_saddr, $lport);
+- @sockpair_exist[tid]=1
+- @watchedIo[tid]=fd
+
+*/
+
+#include <linux/in.h>
+#include <linux/in6.h>
+#include <linux/socket.h>
+#include <net/sock.h>
+// #include <sys/epoll.h>
+
+// The event argument describes the object linked to the file descriptor fd.  The struct epoll_event is defined as:
+// struct epoll_data_t {
+//     int          fd;
+// };
+
+// struct epoll_event {
+//     //a bit mask composed by ORing together zero or more of the following available event types
+//     uint32_t     events;      /* Epoll events */
+
+//     struct epoll_data_t data;        /* User data variable */
+// };
+
+
+
+BEGIN
+{
+	printf("Tracing Envoy. Hit Ctrl-C to end.\n");
+       printf("#define EPOLL_CTL_ADD 1\n #define EPOLL_CTL_DEL 2\n #define EPOLL_CTL_MOD 3\n");
+
+       @epoll_ctl_op[1]="EPOLL_CTL_ADD";
+       @epoll_ctl_op[2]="EPOLL_CTL_DEL";
+       @epoll_ctl_op[3]="EPOLL_CTL_MOD";
+
+
+}
+
+/*
+获取 accept 连接时的本地和对端地址。并标记本轮 wakeup 需要监控
+ */
+kretprobe:inet_csk_accept
+/pid==$1 /
+{
+	$sk = (struct sock *)retval;
+	$inet_family = $sk->__sk_common.skc_family;
+
+	if ($inet_family == AF_INET || $inet_family == AF_INET6) {
+		// initialize variable type:
+		$daddr = ntop(0);
+		$saddr = ntop(0);
+		if ($inet_family == AF_INET) {
+			$daddr = ntop($sk->__sk_common.skc_daddr);
+			$saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+		} else {
+			printf("not support IPv6.\n");
+			return;
+		}
+		
+		$lport = $sk->__sk_common.skc_num;
+
+              // printf("accept(), port=%d\n", $lport);
+
+              //only watch listen port 15006
+		if( 15006 != $lport ) { 
+			return;
+		}
+
+		$dport = $sk->__sk_common.skc_dport;
+		$qlen  = $sk->sk_ack_backlog;
+		$qmax  = $sk->sk_max_ack_backlog;
+
+		// Destination port is big endian, it must be flipped
+		$dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+              printf("OS handshaked TCP:\n");
+		time("%H:%M:%S ");
+		printf("%-6d %-14s ", pid, comm);
+		printf("%-39s %-5d %-39s %-5d ", $daddr, $dport, $saddr,
+		    $lport);
+		printf("%d/%d\n", $qlen, $qmax);
+
+		@sockpair[tid]=($sk->__sk_common.skc_daddr, $dport, $sk->__sk_common.skc_rcv_saddr, $lport);
+		@sockpair_exist[tid]=1;
+
+              @watchedWakeRound[tid]=tid;
+	}
+}
+
+/**
+ * 获取新连接的 FD 。并标记本轮 libevent 回调需要监控
+ */
+tracepoint:syscalls:sys_exit_accept4
+/pid==$1 && @sockpair_exist[tid] /
+{
+	$fd = args->ret;
+	if( $fd < 0 ) {
+		return;
+	}
+	printf("sys_exit_accept4 fd=%d\n", $fd);
+	@fd2sockpair[$fd]=@sockpair[tid];
+
+       @fdFired[tid]=$fd;
+
+	delete(@sockpair[tid]);
+	delete(@sockpair_exist[tid]);
+       printf("%s \n", ustack());
+}
+
+/**
+ * 记录 FD 的 sockopt
+ */
+tracepoint:syscalls:sys_enter_setsockopt
+/pid==$1/
+{
+       // socket opts: https://elixir.bootlin.com/linux/v5.16.3/source/include/uapi/linux/tcp.h#L92     
+       $level = args->level;
+       $fd = args->fd;
+
+       if( @fd2sockpair[$fd].0 || @upFD[$fd] ) {
+              $optname = args->optname;
+              $optval = args->optval;
+              $optval_int = *$optval;
+              $optlen = args->optlen;
+              // printf("\n########## setsockopt() ##########\n");
+              printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
+              @fd2sockopt[$fd, $level, $optname, $optval_int] = 1;
+       }
+}
+
+
+
+/*
+记录 epoll 监听的 FD
+
+cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_ctl/format
+ */
+tracepoint:syscalls:sys_enter_epoll_ctl
+/pid==$1/
+{
+       $fd=args->fd;
+       $epollEvents = (uint32) (args->event->events);
+       $op = args->op;
+       if( @fd2sockpair[$fd].0 ) {
+
+              printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_ctl, epfd=%d, op=%s, fd=%d, events=0x%x\n", 
+                     elapsed, tid, comm, args->epfd, @epoll_ctl_op[$op], $fd, $epollEvents);
+
+
+              if( $op == 1/*EPOLL_CTL_ADD*/ || $op == 3/*EPOLL_CTL_MOD*/ ) { //add watch epoll event
+                     if( $epollEvents & (uint32)0x001 /*EPOLLIN*/ ) {
+                            printf("EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)\n");
+                     }
+                     if( $epollEvents & (uint32)0x004 /*EPOLLOUT*/ ) {
+                            printf("EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)\n");
+                     }
+                     if( $epollEvents & (1u << 31) /*EPOLLET*/ ) {
+                            printf("EPOLL_CTL_ADD/MOD EdgeTrigger\n");
+                     }
+                     printf("%s\n", ustack(30));
+              }
+              
+       } else {
+              $downFD = @fdFired[tid];
+              if( $downFD ) {//in downstream fd event callback, register upstream event trigger
+                     @upFD[$fd] = $fd;
+                     @downFD2upFD[$downFD] = $fd;
+
+                     printf("***** elapsed=%d: tid=%d,comm=%s: register upstream event trigger:sys_enter_epoll_ctl, epfd=%d, op=%s, fd=%d, events=0x%x\n", 
+                            elapsed, tid, comm, args->epfd, @epoll_ctl_op[$op], $fd, $epollEvents);
+
+
+                     if( $op == 1/*EPOLL_CTL_ADD*/ || $op == 3/*EPOLL_CTL_MOD*/ ) { //add watch epoll event
+                            if( $epollEvents & (uint32)0x001 /*EPOLLIN*/ ) {
+                                   printf("EPOLL_CTL_ADD/MOD ReadReady(EPOLLIN)\n");
+                            }
+                            if( $epollEvents & (uint32)0x004 /*EPOLLOUT*/ ) {
+                                   printf("EPOLL_CTL_ADD/MOD WriteReady(EPOLLOUT)\n");
+                            }
+                            if( $epollEvents & (1u << 31) /*EPOLLET*/ ) {
+                                   printf("EPOLL_CTL_ADD/MOD EdgeTrigger\n");
+                            }
+                            printf("%s\n", ustack(60));
+                     }                     
+              }
+       }
+}
+
+/*
+结束本轮的 wakeRound/runnableRound，并等待下一轮
+cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_epoll_wait/format
+ */
+tracepoint:syscalls:sys_enter_epoll_wait
+/pid==$1/
+{
+
+       if( @watchedWakeRound[tid] ) {
+              $runnableStartTime=@tid2Waketime[tid];
+              if( $runnableStartTime ) {
+                     $runableDuaration = elapsed - $runnableStartTime;
+                     printf("\n******* WAKE-ROUND:END Summary *******\n");
+                     printf("***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_wait, runableDuaration=%d, tid2epollNrFdReady=%d\n", 
+                            elapsed, tid, comm, $runableDuaration, @tid2epollNrFdReady[tid]);
+                     $tid_last_epoll_wait_args = @last_epoll_wait_args[tid];
+                     if( $tid_last_epoll_wait_args.0  ) {
+                            printf("*** last_epoll_wait_args: epfd=%d, events=%d, maxevents=%d, timeout=%d \n", 
+                                   $tid_last_epoll_wait_args.0, $tid_last_epoll_wait_args.1, $tid_last_epoll_wait_args.2, $tid_last_epoll_wait_args.3);
+                     }
+                     printf("***************************\n\n");
+              }
+       }
+
+       delete(@tid2Waketime[tid]);
+       delete(@watchedWakeRound[tid]);
+       delete(@tid2epollNrFdReady[tid]);
+
+       //read in next sys_enter_epoll_wait
+       @last_epoll_wait_args[tid]=(args->epfd, args->events, args->maxevents, args->timeout);
+}
+
+/*
+开始本轮 wakeRound/runnableRound
+cat /sys/kernel/debug/tracing/events/syscalls/sys_exit_epoll_wait/format
+ */
+tracepoint:syscalls:sys_exit_epoll_wait
+/pid==$1/
+{
+       // printf("\n***** elapsed=%d: tid=%d,comm=%s: sys_enter_epoll_wait\n", elapsed, tid, comm);
+
+       // printf("epfd: 0x%08lx, events: 0x%08lx, maxevents: 0x%08lx, timeout: 0x%08lx \n", 
+       //        ((args->epfd)), ((args->events)), ((args->maxevents)), ((args->timeout)) );
+
+       @tid2Waketime[tid]=elapsed;
+       @tid2epollNrFdReady[tid]=args->ret;
+}
+
+/*
+记录本轮 epoll 事件触发的 FD 级回调开始
+
+Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int fd, short events, void* fileEventImplThis)  !!!NOT!!: FileEventImpl::assignEvents()
+C++11 Lambda expressions:
+event_assign( &raw_event_, base, fd_, xxx, [](evutil_socket_t, short what, void* arg)-> void {}, this );
+
+event_assign(): https://libevent.org/doc/event_8h.html#a3e49a8172e00ae82959dfe64684eda11
+       event_assign	(	struct event * 	ev,
+              struct event_base * 	base,
+              evutil_socket_t 	fd,
+              short 	events,
+              event_callback_fn 	callback,
+              void * 	callback_arg 
+       )	
+
+       https://libevent.org/doc/event_8h.html#aed2307f3d9b38e07cc10c2607322d758
+       typedef void(* event_callback_fn) (evutil_socket_t, short, void *)
+              fd	An fd or signal
+              events	One or more EV_* flags
+              arg	A user-supplied argument.
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
+/pid == $1/ 
+{
+       $fd = arg0;
+       if( @fd2sockpair[$fd].0 || @upFD[$fd] ) {
+              $libevent_events = arg1;
+
+              printf("\n***** elapsed=%d: tid=%d,comm=%s: BEGIN:EventFired:FileEventImpl::assignEvents::eventCallback()\n", elapsed, tid, comm);
+              printf("FileEventImpl*=%p, fd=%d, events=0x%x\n",arg2, $fd, $libevent_events);
+
+              if( $libevent_events & (uint16)0x01 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_TIMEOUT\n");
+              }
+              if( $libevent_events & (uint16)0x02 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_READ\n");
+              }
+              if( $libevent_events & (uint16)0x04 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_WRITE\n");
+              }
+              if( $libevent_events & (uint16)0x20 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_ET\n");
+              }
+              if( $libevent_events & (uint16)0x80 /*EV_TIMEOUT*/ ) {
+                     printf("libevent: EV_CLOSED\n");
+              }
+              
+              printf("%s\n", kstack);
+              @fdFired[tid]=$fd;
+              @watchedWakeRound[tid]=tid;
+       }
+}
+
+/*
+记录本轮 epoll 事件触发的 FD 级回调结束
+*/
+uretprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FileEventImpl*assignEvents*
+/pid == $1 && @fdFired[tid] / 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: END:EventFired\n", elapsed, tid, comm);
+       delete(@fdFired[tid]);
+}
+
+/*
+埋点 socket 读
+*/ 
+tracepoint:syscalls:sys_enter_read,tracepoint:syscalls:sys_enter_readv,tracepoint:syscalls:sys_enter_recv*
+/pid == $1 && (@fd2sockpair[args->fd].0 || @upFD[args->fd] ) / 
+{
+       @watchedIo[tid]=args->fd;
+}
+
+tracepoint:syscalls:sys_exit_read,tracepoint:syscalls:sys_exit_readv,tracepoint:syscalls:sys_exit_recv*
+/pid == $1 && @watchedIo[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: socket_read, probe=%s, fd=%d, ret=%d\n", elapsed, tid, comm, probe, @watchedIo[tid],args->ret);
+       delete(@watchedIo[tid]);
+       printf("%s\n", ustack(20));
+}
+
+/*
+埋点 socket 写
+*/
+tracepoint:syscalls:sys_enter_write,tracepoint:syscalls:sys_enter_writev
+/pid == $1 && ( @fd2sockpair[args->fd].0 || @upFD[args->fd] ) / 
+{
+       @watchedIo[tid]=args->fd;
+}
+
+tracepoint:syscalls:sys_exit_write,tracepoint:syscalls:sys_exit_writev
+/pid == $1 && @watchedIo[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: socket_write, probe=%s, fd=%d, ret=%d\n", elapsed, tid, comm, probe, @watchedIo[tid], args->ret);
+       delete(@watchedIo[tid]);
+       printf("%s\n", ustack(20));
+}
+
+
+/*
+打印 TlsInspector 的所有函数调用
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*TlsInspector*
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: TlsInspector*, probe=%s\n", elapsed, tid, comm, probe);
+}
+
+/*
+打印连接确认协后的函数调用
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnectionSocketImpl*setRequestedApplicationProtocols*
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: ConnectionSocketImpl::setRequestedApplicationProtocols\n", elapsed, tid, comm);
+       // printf("%s", ustack);
+}
+
+//SslSocket::SslSocket
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocketC2ENSt3__110shared_ptrINS_3Ssl7ContextEEENS2_12InitialStateERKNS5_IKNS_7Network22TransportSocketOptionsEEENS4_8functionIFNS5_INS6_10HandshakerEEENS4_10unique_ptrI6ssl_stN4bssl8internal7DeleterISK_EEEEiPNS6_18HandshakeCallbacksEEEE
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+// setTransportSocketCallbacks
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket27setTransportSocketCallbacksERNS_7Network24TransportSocketCallbacksE
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+
+// SslSocket::doRead
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket6doReadERNS_6Buffer8InstanceE
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+
+// SslSocket::doWrite
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10Extensions16TransportSockets3Tls9SslSocket7doWriteERNS_6Buffer8InstanceEb
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+// SslSocket::onSuccess
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZThn16_N5Envoy10Extensions16TransportSockets3Tls9SslSocket9onSuccessEP6ssl_st
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+// SslSocket::connection
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZThn16_NK5Envoy10Extensions16TransportSockets3Tls9SslSocket10connectionEv
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+// SslSocket::connection
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZThn16_NK5Envoy10Extensions16TransportSockets3Tls9SslSocket10connectionEv
+/pid == $1 && @fdFired[tid]/ 
+{
+       printf("\n***** elapsed=%d: tid=%d,comm=%s: SslSocket*, probe=%s\n", elapsed, tid, comm, probe);
+       printf("%s\n", ustack(10));
+}
+
+/*
+打印匹配到的 Network Fitler Chain 名字
+void setFilterChainName(absl::string_view filter_chain_name)
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
+/pid == $1 && @fdFired[tid]/ 
+{ 
+/**
+[Assembly 2: Calling convention](https://cs61.seas.harvard.edu/site/2018/Asm2/)
+
+1. A structure argument that fits in a single machine word (64 bits/8 bytes) is passed in a single register.
+   
+    Example: `struct small { char a1, a2; }`
+
+2. A structure that fits in two to four machine words (16–32 bytes) is passed in sequential registers, as if it were multiple arguments.
+   
+    Example: `struct medium { long a1, a2; }`
+*/
+    $filterName = str(reg("si"));
+    $filterNameLength = reg("dx");
+
+    // printf("tid:%d: Got setFilterChainName=%s, lenght=%d\n %s \n", tid, $filterName, $filterNameLength, ustack ); 
+    printf("comm:%s,tid:%d: Got setFilterChainName=%s, lenght=%d\n", comm, tid, $filterName, $filterNameLength ); 
+
+    if( $filterNameLength > 0 ) {
+        printf("%s\n", ustack(3));
+    }
+}
+
+/*
+埋点 FilterManagerImpl::add*Filter()
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*add*Filter*,uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*FilterManagerImpl*
+/pid == $1 && @fdFired[tid]/ 
+{ 
+       if( @upFD[@fdFired[tid]] ) {
+              return;
+       }
+
+       $fd = @fdFired[tid];
+       @filterManagerImpl2fd[arg0] = $fd;
+       if( @fd2filterManagerImpl[$fd] ) {
+              @fd2filterManagerImpl2[$fd] = arg0;
+       } else {
+              @fd2filterManagerImpl[$fd] = arg0;
+       }
+       printf("comm:%s,tid:%d: FilterManagerImpl.add*Filter|FilterManagerImpl::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd);
+       printf("%s\n", ustack(40));
+}
+
+/*
+埋点 FilterManagerImpl::on*()
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*FilterManagerImpl*on*
+/pid == $1 && @fdFired[tid]/ 
+{ 
+       if( @upFD[@fdFired[tid]] ) {
+              return;
+       }
+
+       $fd = @fdFired[tid];
+       @filterManagerImpl2fd[arg0] = $fd;
+       if( @fd2filterManagerImpl[$fd] ) {
+              @fd2filterManagerImpl2[$fd] = arg0;
+       } else {
+              @fd2filterManagerImpl[$fd] = arg0;
+       }
+       printf("comm:%s,tid:%d: FilterManagerImpl.on*::%s,FilterManagerImpl.this=%p,fd=%d \n", comm, tid, probe, arg0, $fd); 
+}
+
+/*
+埋点 ConnPoolImplBase::attachStreamToClient()
+*/
+uprobe:/proc/${ENVOY_PID}/root/usr/local/bin/envoy:*ConnPoolImplBase*attachStreamToClient*
+/pid == $1 && @fdFired[tid]/ 
+{ 
+       printf("comm:%s,tid:%d: ConnPoolImplBase*attachStreamToClient: %s \n", comm, tid, probe); 
+       printf("%s\n", ustack(40));
+}
+
+/*
+埋点 socket connect upstream
+*/
+kprobe:tcp_connect
+/pid == $1/
+{
+       $sk = ((struct sock *)arg0);
+       $inet_family = $sk->__sk_common.skc_family;
+
+       if ($inet_family == AF_INET || $inet_family == AF_INET6)
+       {
+              if ($inet_family == AF_INET)
+              {
+                     $daddr = ntop($sk->__sk_common.skc_daddr);
+                     $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+              }
+              else
+              {
+                     $daddr = ntop($sk->__sk_common.skc_v6_daddr.in6_u.u6_addr8);
+                     $saddr = ntop($sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr8);
+              }
+              $lport = $sk->__sk_common.skc_num;
+              $dport = $sk->__sk_common.skc_dport;
+
+              // Destination port is big endian, it must be flipped
+              $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+              // only watch listen port 8080
+              if (8080 != $dport)
+              {
+                     return;
+              }
+
+              printf("connecting to 8080:\n");
+              time("%H:%M:%S ");
+              printf("%-8d %-16s ", pid, comm);
+              printf("%-39s %-6d %-39s %-6d\n", $saddr, $lport, $daddr, $dport);
+              printf("%s\n", ustack(40));
+       }
+}
+
+
+/*
+清理关闭的 FD 相关的 Map
+cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
+*/
+tracepoint:syscalls:sys_enter_close
+/pid==$1/
+{
+	$fd = args->fd;
+	if( $fd < 0 ) {
+		return;
+	}
+
+       delete(@upFD[$fd]);
+
+       if( @fd2sockpair[$fd].0 ) {
+              printf("sys_enter_close fd=%d\n", $fd);
+       }
+       else {
+              return;
+       }
+	delete(@fd2sockpair[$fd]);
+
+       /////
+
+       $filterManagerImpl = @fd2filterManagerImpl[$fd];
+       if( $filterManagerImpl ) {
+              printf("delete fd2filterManagerImpl, fd=%d\n", $fd );
+              delete( @fd2filterManagerImpl[$fd] );
+       }
+
+       if( @filterManagerImpl2fd[$filterManagerImpl] ) {
+              printf("delete fd2filterManagerImpl=%p\n", $filterManagerImpl );
+              delete(@filterManagerImpl2fd[$filterManagerImpl]);
+       }
+
+
+       $filterManagerImpl = @fd2filterManagerImpl2[$fd];
+       if( $filterManagerImpl ) {
+              printf("delete fd2filterManagerImpl, fd=%d\n", $fd );
+              delete( @fd2filterManagerImpl2[$fd] );
+       }
+
+       if( @filterManagerImpl2fd[$filterManagerImpl] ) {
+              printf("delete fd2filterManagerImpl=%p\n", $filterManagerImpl );
+              delete(@filterManagerImpl2fd[$filterManagerImpl]);
+       }
+
+       delete(@upFD[@downFD2upFD[$fd]]);
+       delete(@downFD2upFD[$fd]);
+}
+
+END
+{
+       clear(@last_epoll_wait_args);
+       clear(@tid2Waketime);
+       clear(@tid2epollNrFdReady);
+}

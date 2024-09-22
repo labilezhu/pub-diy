@@ -1,0 +1,188 @@
+#!/usr/local/bin/bpftrace
+
+#include <linux/sched.h>
+#include <linux/wait.h>
+#include <linux/fs.h>
+#include <linux/net.h>
+#include <linux/socket.h>
+#include <net/sock.h>
+
+struct epoll_filefd {
+	struct file *file;
+	int fd;
+};
+
+struct epitem {
+	union {
+		/* RB tree node links this structure to the eventpoll RB tree */
+		struct rb_node rbn;
+		/* Used to free the struct epitem */
+		struct rcu_head rcu;
+	};
+
+	/* List header used to link this structure to the eventpoll ready list */
+	struct list_head rdllink;
+
+	/*
+	 * Works together "struct eventpoll"->ovflist in keeping the
+	 * single linked chain of items.
+	 */
+	struct epitem *next;
+
+	/* The file descriptor information this item refers to */
+	struct epoll_filefd ffd;
+
+	/* Number of active wait queue attached to poll operations */
+	int nwait;
+
+	/* List containing poll wait queues */
+	struct list_head pwqlist;
+
+	/* The "container" of this item */
+	struct eventpoll *ep;
+
+	// /* List header used to link this item to the "struct file" items list */
+	// struct list_head fllink;
+
+	// /* wakeup_source used when EPOLLWAKEUP is set */
+	// struct wakeup_source __rcu *ws;
+
+	// /* The structure that describe the interested events and the source fd */
+	// struct epoll_event event;
+};
+
+
+struct eppoll_entry {
+	/* List header used to link this structure to the "struct epitem" */
+	struct list_head llink;
+
+	/* The "base" pointer is set to the container "struct epitem" */
+	struct epitem *base;
+
+	/*
+	 * Wait queue item that will be linked to the target file wait
+	 * queue head.
+	 */
+	struct wait_queue_entry wait;
+
+	// /* The wait queue head that linked the "wait" wait queue item */
+	// wait_queue_head_t *whead;
+};
+
+
+BEGIN
+{
+    printf("Tracing nanosecond time in off-CPU stacks. Ctrl-C to end.\n");
+
+	// See include/net/tcp_states.h:
+	@tcp_states[1] = "ESTABLISHED";
+	@tcp_states[2] = "SYN_SENT";
+	@tcp_states[3] = "SYN_RECV";
+	@tcp_states[4] = "FIN_WAIT1";
+	@tcp_states[5] = "FIN_WAIT2";
+	@tcp_states[6] = "TIME_WAIT";
+	@tcp_states[7] = "CLOSE";
+	@tcp_states[8] = "CLOSE_WAIT";
+	@tcp_states[9] = "LAST_ACK";
+	@tcp_states[10] = "LISTEN";
+	@tcp_states[11] = "CLOSING";
+	@tcp_states[12] = "NEW_SYN_RECV";    
+}
+
+kprobe:ep_poll_callback
+{
+    // record previous thread sleep time
+    $wq_entry = (struct wait_queue_entry *)arg0;
+    $u = (uint64)$wq_entry;
+    $eppoll_entry = (struct eppoll_entry *) ( $u-8-sizeof(struct list_head) );
+    $base_epitem = $eppoll_entry->base;
+    $file = $base_epitem->ffd.file;
+    $fd = $base_epitem->ffd.fd;
+    // printf("elapsed=%d: tid=%d,comm=%s: ep_poll_callback: fd=%d, file*=%p\n", 
+    //     elapsed, tid, comm, 
+    //     $fd, $file);
+
+    $ep = (uint64)($base_epitem->ep);
+
+    $socket_file_ops = kaddr("socket_file_ops");
+    // printf("socket_file_ops=%p\n", $socket_file_ops);
+    
+    if( $file->f_op != $socket_file_ops ) {//not socket file
+        // printf("not socket_file_ops, file->f_op=%p, ksym=%s\n", $file->f_op, ksym($file->f_op));
+        return;
+    }
+
+    $private_data = $file->private_data;
+    if( ((uint64)$private_data ) == 0 ) {
+        // printf("((uint64)$private_data ) == 0s\n");
+        return;
+    }
+
+    $socket = (struct socket*) $private_data;
+
+    // printf("socket\n");
+    $sk = (struct sock *) $socket->sk;
+
+	$inet_family = $sk->__sk_common.skc_family;
+    if ($inet_family != AF_INET) {
+        return;
+    }
+
+    // initialize variable type:
+    $daddr = ntop(0);
+    $saddr = ntop(0);
+    $daddr = ntop($sk->__sk_common.skc_daddr);
+    $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+    $lport = $sk->__sk_common.skc_num;
+    $dport = $sk->__sk_common.skc_dport;
+
+    
+    $dport = $sk->__sk_common.skc_dport;
+    // Destination port is big endian, it must be flipped
+    $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+    $state = $sk->__sk_common.skc_state;
+    $statestr = @tcp_states[$state];
+
+
+    printf("elapsed=%d: tid=%d,comm=%s: ep_poll_callback: fd=%d, peerPort=%d\n", 
+        elapsed, tid, comm, 
+        $fd, $dport);    
+
+    printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
+        $daddr, $dport, $statestr);
+
+    printf("wakeup: $eventpoll=%p\n", $ep);
+    if( @eventpoll2pid[$ep].0 ) {
+        printf("Wakeup: $eventpoll=%p\n", $ep);
+    }
+
+}
+
+kprobe:ep_poll
+{
+    $eventpoll = /* (struct eventpoll *) */(uint64)arg0;
+    @scope_ep_poll_with_eventpoll[tid]=$eventpoll;
+    @eventpoll2pid[$eventpoll]=(pid,tid,comm);
+}
+
+kretprobe:ep_poll
+/@scope_ep_poll_with_eventpoll[tid]/
+{
+    $eventpoll = @scope_ep_poll_with_eventpoll[tid];
+    
+    if( @eventpoll2pid[$eventpoll].0 ) {
+        printf("deleted: eventpoll2pid[%p]\n", $eventpoll);
+    }
+    delete(@eventpoll2pid[$eventpoll]);
+
+    delete(@scope_ep_poll_with_eventpoll[tid]);
+    // printf("ep_poll() wakeuped, exited. $eventpoll=%p\n", $eventpoll);
+}
+
+END
+{
+    clear(@tcp_states);
+    // clear(@eventpoll2pid);
+    // clear(@eventpoll2tid);
+}

@@ -1,0 +1,112 @@
+#!/usr/local/bin/bpftrace
+
+
+/**
+function getEnvoyPID()
+{
+    export PODID=`crictl pods | grep forti | head -n1 | awk '{print $1;}'`
+    export CONTAINERID=`crictl ps | grep $PODID | grep proxy | awk '{print $1;}'`
+    export CPID=`crictl inspect $CONTAINERID 2> /dev/null | jq -r -j .info.pid`
+    export PID=`pgrep --ns $CPID envoy`
+    echo $PID
+}
+
+export PID=`echo "$(declare -f getEnvoyPID); getEnvoyPID" | sudo bash`
+
+export SCRIPT_HOME=/home/labile/pub-diy/low-tec/trace/trace-istio/bpftrace
+
+cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; \
+bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen
+ */
+
+
+
+/**
+  void setFilterChainName(absl::string_view filter_chain_name) override {
+    filter_chain_name_ = std::string(filter_chain_name);
+  }
+*/
+
+
+
+// gdb: ptype /o struct absl::string_view
+struct string_view {
+/*    0      |     8 */    char* ptr_;
+/*    8      |     8 */    unsigned long length_;
+
+                           /* total size (bytes):   16 */
+
+};
+
+
+
+BEGIN
+{
+}
+
+
+uprobe:/proc/ENVOY_PID/root/usr/local/bin/envoy:_ZN5Envoy10StreamInfo14StreamInfoImpl18setFilterChainNameEN4absl11string_viewE 
+/pid == ENVOY_PID/ 
+{ 
+    // $receiver = reg("di"); // "this" pointer
+    // $element_ptr = (struct mailbox_element_ptr*) reg("si");
+    // $file = (struct string_view *)arg1;
+
+    // $file = (struct string_view *)reg("si");
+    // $filterName = str($file->ptr_);
+
+/**
+1. A structure argument that fits in a single machine word (64 bits/8 bytes) is passed in a single register.
+   
+    Example: `struct small { char a1, a2; }`
+
+2. A structure that fits in two to four machine words (16–32 bytes) is passed in sequential registers, as if it were multiple arguments.
+   
+    Example: `struct medium { long a1, a2; }`
+*/
+    $filterName = str(reg("si"));
+    $filterNameLength = reg("dx");
+
+    // printf("tid:%d: Got setFilterChainName=%s, lenght=%d\n %s \n", tid, $filterName, $filterNameLength, ustack ); 
+    printf("comm:%s,tid:%d: Got setFilterChainName=%s, lenght=%d\n", comm, tid, $filterName, $filterNameLength ); 
+
+    if( $filterNameLength > 0 ) {
+        printf("%s\n", ustack);
+    }
+
+}
+
+
+END
+{
+}
+
+
+/**
+ * 
+cat $SCRIPT_HOME/trace-filter-match.bt | sed "s/ENVOY_PID/$PID/g" > $SCRIPT_HOME/trace-filter-match.bt.gen; bpftrace $SCRIPT_HOME/trace-filter-match.bt.gen 
+
+curl -i -v https://172.21.206.195:8080/fortio
+
+
+tid:4416: Got setFilterChainName=0.0.0.0_8080, lenght=12
+ 
+        Envoy::StreamInfo::StreamInfoImpl::setFilterChainName(absl::string_view)+0
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Extensions::ListenerFilters::TlsInspector::Filter::done(bool)+380
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+export INGRESS_HOST=172.21.206.195
+export SECURE_INGRESS_PORT=8080
+curl -v -HHost:fortio-server.idm-mark.com --resolve "fortio-server.idm-mark.com:$SECURE_INGRESS_PORT:$INGRESS_HOST" \
+"http://fortio-server.idm-mark.com:$SECURE_INGRESS_PORT/fortio"
+
+
+ */

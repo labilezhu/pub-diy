@@ -1,0 +1,32 @@
+***** elapsed=914234507: tid=4417,comm=wrk:worker_1: ActiveTcpSocket::ActiveTcpSocket arg0=0x55c797f33880
+pConnectionSocket=0x55c797f332b8
+parent_offset=-56
+pTypeInfoConnectionSocket->typename=N5Envoy7Network18AcceptedSocketImplE
+type is Envoy::Network::AcceptedSocketImpl
+pAcceptedSocketImpl=0x55c797f33280
+pSocketAddressSetterImpl=0x55c797f33718
+p_remote_address->sin_port=37222, p_remote_address->s_addr=192.168.122.55 
+local_address_->sin_port=15006, local_address_->s_addr=172.21.206.195 
+direct_remote_address_->sin_port=37222, direct_remote_address_->s_addr=192.168.122.55 
+connection_id_.engaged_=0, connection_id_.data_=109227 
+
+***** elapsed=914329262: tid=4417,comm=wrk:worker_1: SocketAddressSetterImpl::restoreLocalAddress this=0x55c797f33718
+local_address_->sin_port=8080, local_address_->s_addr=172.21.206.195 
+p_remote_address->sin_port=37222, p_remote_address->s_addr=192.168.122.55 
+connection_id_.engaged_=0, connection_id_.data_=109227 
+
+***** elapsed=914379248: tid=4417,comm=wrk:worker_1: *TlsInspector*.onRead() this=0x55c797853900
+pSocketAddressSetterImpl=0x55c797f33718
+p_remote_address->sin_port=37222, p_remote_address->s_addr=192.168.122.55 
+local_address_->sin_port=8080, local_address_->s_addr=172.21.206.195 
+connection_id_.engaged_=0, connection_id_.data_=109227 
+
+***** elapsed=915526566: tid=4417,comm=wrk:worker_1: *TlsInspector*.onRead() this=0x55c797853900
+pSocketAddressSetterImpl=0x55c797f33718
+p_remote_address->sin_port=37222, p_remote_address->s_addr=192.168.122.55 
+local_address_->sin_port=8080, local_address_->s_addr=172.21.206.195 
+connection_id_.engaged_=0, connection_id_.data_=109227 
+
+***** elapsed=915602802: tid=4417,comm=wrk:worker_1: *TlsInspector*.done() this=0x55c797853900
+pSocketAddressSetterImpl=0x55c797f33718
+connection_id_.engaged_=0, connection_id_.data_=109227 

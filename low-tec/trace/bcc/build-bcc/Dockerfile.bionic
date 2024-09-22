@@ -1,0 +1,19 @@
+FROM quay.io/iovisor/bpftrace:v0.14.1 AS bpftraceImage
+
+
+FROM ubuntu:18.04
+LABEL maintainer="labile.zhu <labile.zhu@gmail.com>"
+
+COPY  --from=bpftraceImage  /usr/bin/bpftrace /usr/bin/bpftrace
+
+COPY setup.bionic.sh /tmp/
+
+RUN bash -x /tmp/setup.bionic.sh &&\
+    rm -rf /tmp/setup.bionic.sh
+
+
+# COPY entrypoint.sh /
+# RUN chmod +x /entrypoint.sh
+
+# ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]

@@ -1,0 +1,139 @@
+#!usr/bin/bpftrace
+
+
+/**
+
+export SCRIPT_HOME=`pwd`
+export bpftrace_image=cndt-bcc-ub
+
+export PID=4283
+
+docker run -it --rm --init  --privileged --name bpftrace -h bpftrace \
+    --pid host \
+    --net host \
+    -e SCRIPT_HOME=$SCRIPT_HOME \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /sys:/sys:rw \
+    -v /usr/src:/usr/src:rw \
+    -v /lib/modules:/lib/modules:ro \
+    -v ${SCRIPT_HOME}:${SCRIPT_HOME}:rw \
+    $bpftrace_image \
+    bpftrace  ${SCRIPT_HOME}/trace-envoy-accept-flow.bt $PID
+
+
+ */
+
+
+#include <linux/in.h>
+#include <linux/in6.h>
+#include <linux/socket.h>
+#include <net/sock.h>
+
+BEGIN
+{
+	printf("Tracing TCP accepts. Hit Ctrl-C to end.\n");
+	printf("%-8s %-6s %-14s ", "TIME", "PID", "COMM");
+	printf("%-39s %-5s %-39s %-5s %s\n", "RADDR", "RPORT", "LADDR",
+	    "LPORT", "BL");
+}
+
+kretprobe:inet_csk_accept
+// (comm == "wrk:worker_0" || comm == "wrk:worker_1") && 
+/pid==$1 /
+{
+	$sk = (struct sock *)retval;
+	$inet_family = $sk->__sk_common.skc_family;
+
+	if ($inet_family == AF_INET || $inet_family == AF_INET6) {
+		// initialize variable type:
+		$daddr = ntop(0);
+		$saddr = ntop(0);
+		if ($inet_family == AF_INET) {
+			$daddr = ntop($sk->__sk_common.skc_daddr);
+			$saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+		} else {
+			printf("not support IPv6.\n");
+			return;
+		}
+		
+		$lport = $sk->__sk_common.skc_num;
+		if( 15006 != $lport ) {
+			return;
+		}
+
+		$dport = $sk->__sk_common.skc_dport;
+		$qlen  = $sk->sk_ack_backlog;
+		$qmax  = $sk->sk_max_ack_backlog;
+
+		// Destination port is big endian, it must be flipped
+		$dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+		time("%H:%M:%S ");
+		printf("%-6d %-14s ", pid, comm);
+		printf("%-39s %-5d %-39s %-5d ", $daddr, $dport, $saddr,
+		    $lport);
+		printf("%d/%d\n", $qlen, $qmax);
+
+		@sockpair[tid]=($sk->__sk_common.skc_daddr, $dport, $sk->__sk_common.skc_rcv_saddr, $lport);
+		@sockpair_exist[tid]=1;
+
+		// printf("stack: %s\n", ustack);
+	}
+}
+
+
+//tracepoint:syscalls:sys_exit_accept,
+tracepoint:syscalls:sys_exit_accept4
+/pid==$1 && @sockpair_exist[tid] /
+{
+	$fd = args->ret;
+	if( $fd < 0 ) {
+		return;
+	}
+	printf("sys_exit_accept4 fd=%d\n", $fd);
+	@fd2sockpair[$fd]=@sockpair[tid];
+	delete(@sockpair[tid]);
+	delete(@sockpair_exist[tid]);
+}
+
+//cat /sys/kernel/debug/tracing/events/syscalls/sys_enter_close/format
+tracepoint:syscalls:sys_enter_close
+/pid==$1/
+{
+	$fd = args->fd;
+	if( $fd < 0 ) {
+		return;
+	}
+       if( @fd2sockpair[$fd].0 ) {
+              printf("sys_enter_close fd=%d\n", $fd);
+       }
+
+	delete(@fd2sockpair[$fd]);
+}
+
+
+tracepoint:syscalls:sys_enter_setsockopt
+/pid==$1/
+{
+       // socket opts: https://elixir.bootlin.com/linux/v5.16.3/source/include/uapi/linux/tcp.h#L92     
+       $level = args->level;
+       $fd = args->fd;
+
+       if( @fd2sockpair[$fd].0 ) {
+              $optname = args->optname;
+              $optval = args->optval;
+              $optval_int = *$optval;
+              $optlen = args->optlen;
+              printf("\n########## setsockopt() ##########\n");
+              printf("comm:%-16s: setsockopt: level=%d, fd=%d, optname=%d, optval=%d, optlen=%d. \n", comm, $level, $fd, $optname, $optval_int, $optlen);
+              @fd2sockopt[$fd, $level, $optname, $optval_int] = 1;
+       }
+
+}
+
+
+END
+{
+       // clear(@watchedpid);
+       // clear(@dup_fd_old2new);
+}

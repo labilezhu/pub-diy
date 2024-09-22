@@ -1,0 +1,13 @@
+    PID    SPID TTY          TIME CMD
+ 513808  513808 pts/18   00:00:00 java
+ 513808  513811 pts/18   00:00:12 java
+ 513808  513812 pts/18   00:00:01 VM Periodic Tas
+ 513808  513816 pts/18   00:00:00 VM Thread
+ 513808  513835 pts/18   00:00:00 Reference Handl
+ 513808  513836 pts/18   00:00:00 Finalizer
+ 513808  513837 pts/18   00:00:00 Signal Dispatch
+ 513808  513838 pts/18   00:00:00 Service Thread
+ 513808  513839 pts/18   00:00:00 Monitor Deflati
+ 513808  513840 pts/18   00:02:36 C2 CompilerThre
+ 513808  514357 pts/18   00:00:00 Common-Cleaner
+ 513808  518374 pts/18   00:00:00 Notification Th

@@ -1,0 +1,467 @@
+Attaching 7 probes...
+watched envoy pid: 191421
+
+########## bind() ##########
+
+########## setsockopt() ##########
+comm:envoy           : setsockopt: level=1, fd=18, optname=2, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::setPrebindSocketOptions()+50
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+398
+        Envoy::Server::AdminImpl::startHttpListener(std::__1::list<std::__1::shared_ptr<Envoy::AccessLog::Instance>, std::__1::allocator<std::__1::shared_ptr<Envoy::AccessLog::Instance> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, std::__1::unique_ptr<Envoy::Stats::Scope, std::__1::default_delete<Envoy::Stats::Scope> >&&)+302
+        Envoy::Server::InstanceImpl::initialize(Envoy::Server::Options const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Server::ComponentFactory&)+12555
+        Envoy::Server::InstanceImpl::InstanceImpl(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::StoreRoot&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::Instance&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >, std::__1::shared_ptr<Envoy::Buffer::WatermarkFactory>)+1912
+        std::__1::__unique_if<Envoy::Server::InstanceImpl>::__unique_single std::__1::make_unique<Envoy::Server::InstanceImpl, Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> > >(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >&&)+164
+        Envoy::MainCommonBase::MainCommonBase(Envoy::Server::Options const&, Envoy::Event::TimeSystem&, Envoy::ListenerHooks&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Server::Platform, std::__1::default_delete<Envoy::Server::Platform> >, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >)+1680
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## bind() ##########
+comm:envoy           : bind AF_INET: ip:127.0.0.1        port:15000 fd=18 
+stack: 
+        bind+11
+        Envoy::Network::IoSocketHandleImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+101
+        Envoy::Network::SocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+383
+        Envoy::Network::ListenSocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+77
+        Envoy::Network::ListenSocketImpl::setupSocket(std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+76
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+486
+        Envoy::Server::AdminImpl::startHttpListener(std::__1::list<std::__1::shared_ptr<Envoy::AccessLog::Instance>, std::__1::allocator<std::__1::shared_ptr<Envoy::AccessLog::Instance> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, std::__1::unique_ptr<Envoy::Stats::Scope, std::__1::default_delete<Envoy::Stats::Scope> >&&)+302
+        Envoy::Server::InstanceImpl::initialize(Envoy::Server::Options const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Server::ComponentFactory&)+12555
+        Envoy::Server::InstanceImpl::InstanceImpl(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::StoreRoot&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::Instance&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >, std::__1::shared_ptr<Envoy::Buffer::WatermarkFactory>)+1912
+        std::__1::__unique_if<Envoy::Server::InstanceImpl>::__unique_single std::__1::make_unique<Envoy::Server::InstanceImpl, Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> > >(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >&&)+164
+        Envoy::MainCommonBase::MainCommonBase(Envoy::Server::Options const&, Envoy::Event::TimeSystem&, Envoy::ListenerHooks&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Server::Platform, std::__1::default_delete<Envoy::Server::Platform> >, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >)+1680
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## setsockopt() ##########
+comm:envoy           : setsockopt: level=1, fd=21, optname=2, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::setPrebindSocketOptions()+50
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+398
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::Configuration::MainImpl::initialize(envoy::config::bootstrap::v3::Bootstrap const&, Envoy::Server::Instance&, Envoy::Upstream::ClusterManagerFactory&)+2135
+        Envoy::Server::InstanceImpl::initialize(Envoy::Server::Options const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Server::ComponentFactory&)+14470
+        Envoy::Server::InstanceImpl::InstanceImpl(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::StoreRoot&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::Instance&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >, std::__1::shared_ptr<Envoy::Buffer::WatermarkFactory>)+1912
+        std::__1::__unique_if<Envoy::Server::InstanceImpl>::__unique_single std::__1::make_unique<Envoy::Server::InstanceImpl, Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> > >(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >&&)+164
+        Envoy::MainCommonBase::MainCommonBase(Envoy::Server::Options const&, Envoy::Event::TimeSystem&, Envoy::ListenerHooks&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Server::Platform, std::__1::default_delete<Envoy::Server::Platform> >, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >)+1680
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## bind() ##########
+comm:envoy           : bind AF_INET: ip:0.0.0.0          port:15090 fd=21 
+stack: 
+        bind+11
+        Envoy::Network::IoSocketHandleImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+101
+        Envoy::Network::SocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+383
+        Envoy::Network::ListenSocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+77
+        Envoy::Network::ListenSocketImpl::setupSocket(std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+76
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+486
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::Configuration::MainImpl::initialize(envoy::config::bootstrap::v3::Bootstrap const&, Envoy::Server::Instance&, Envoy::Upstream::ClusterManagerFactory&)+2135
+        Envoy::Server::InstanceImpl::initialize(Envoy::Server::Options const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Server::ComponentFactory&)+14470
+        Envoy::Server::InstanceImpl::InstanceImpl(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::StoreRoot&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::Instance&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >, std::__1::shared_ptr<Envoy::Buffer::WatermarkFactory>)+1912
+        std::__1::__unique_if<Envoy::Server::InstanceImpl>::__unique_single std::__1::make_unique<Envoy::Server::InstanceImpl, Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> > >(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >&&)+164
+        Envoy::MainCommonBase::MainCommonBase(Envoy::Server::Options const&, Envoy::Event::TimeSystem&, Envoy::ListenerHooks&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Server::Platform, std::__1::default_delete<Envoy::Server::Platform> >, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >)+1680
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## setsockopt() ##########
+comm:envoy           : setsockopt: level=1, fd=22, optname=2, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::setPrebindSocketOptions()+50
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+398
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::Configuration::MainImpl::initialize(envoy::config::bootstrap::v3::Bootstrap const&, Envoy::Server::Instance&, Envoy::Upstream::ClusterManagerFactory&)+2135
+        Envoy::Server::InstanceImpl::initialize(Envoy::Server::Options const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Server::ComponentFactory&)+14470
+        Envoy::Server::InstanceImpl::InstanceImpl(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::StoreRoot&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::Instance&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >, std::__1::shared_ptr<Envoy::Buffer::WatermarkFactory>)+1912
+        std::__1::__unique_if<Envoy::Server::InstanceImpl>::__unique_single std::__1::make_unique<Envoy::Server::InstanceImpl, Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> > >(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >&&)+164
+        Envoy::MainCommonBase::MainCommonBase(Envoy::Server::Options const&, Envoy::Event::TimeSystem&, Envoy::ListenerHooks&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Server::Platform, std::__1::default_delete<Envoy::Server::Platform> >, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >)+1680
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## bind() ##########
+comm:envoy           : bind AF_INET: ip:0.0.0.0          port:15021 fd=22 
+stack: 
+        bind+11
+        Envoy::Network::IoSocketHandleImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+101
+        Envoy::Network::SocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+383
+        Envoy::Network::ListenSocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+77
+        Envoy::Network::ListenSocketImpl::setupSocket(std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+76
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+486
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::Configuration::MainImpl::initialize(envoy::config::bootstrap::v3::Bootstrap const&, Envoy::Server::Instance&, Envoy::Upstream::ClusterManagerFactory&)+2135
+        Envoy::Server::InstanceImpl::initialize(Envoy::Server::Options const&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Server::ComponentFactory&)+14470
+        Envoy::Server::InstanceImpl::InstanceImpl(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::StoreRoot&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::Instance&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >, std::__1::shared_ptr<Envoy::Buffer::WatermarkFactory>)+1912
+        std::__1::__unique_if<Envoy::Server::InstanceImpl>::__unique_single std::__1::make_unique<Envoy::Server::InstanceImpl, Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> > >(Envoy::Init::Manager&, Envoy::Server::Options const&, Envoy::Event::TimeSystem&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&, Envoy::ListenerHooks&, Envoy::Server::HotRestart&, Envoy::Stats::ThreadLocalStoreImpl&, Envoy::Thread::BasicLockable&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, Envoy::ThreadLocal::InstanceImpl&, Envoy::Thread::ThreadFactory&, Envoy::Filesystem::Instance&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >&&)+164
+        Envoy::MainCommonBase::MainCommonBase(Envoy::Server::Options const&, Envoy::Event::TimeSystem&, Envoy::ListenerHooks&, Envoy::Server::ComponentFactory&, std::__1::unique_ptr<Envoy::Server::Platform, std::__1::default_delete<Envoy::Server::Platform> >, std::__1::unique_ptr<Envoy::Random::RandomGenerator, std::__1::default_delete<Envoy::Random::RandomGenerator> >&&, std::__1::unique_ptr<Envoy::ProcessContext, std::__1::default_delete<Envoy::ProcessContext> >)+1680
+        Envoy::MainCommon::MainCommon(int, char const* const*)+398
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+67
+        main+44
+        __libc_start_main+243
+
+
+########## setsockopt() ##########
+comm:envoy           : setsockopt: level=1, fd=31, optname=2, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::setPrebindSocketOptions()+50
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+398
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, google::protobuf::RepeatedPtrField<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+1535
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+908
+        Envoy::Config::GrpcSubscriptionImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+121
+        Envoy::Config::GrpcMuxImpl::onDiscoveryResponse(std::__1::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse, std::__1::default_delete<envoy::service::discovery::v3::DiscoveryResponse> >&&, Envoy::Config::ControlPlaneStats&)+3664
+        Envoy::Grpc::AsyncStreamCallbacks<envoy::service::discovery::v3::DiscoveryResponse>::onReceiveMessageRaw(std::__1::unique_ptr<Envoy::Buffer::Instance, std::__1::default_delete<Envoy::Buffer::Instance> >&&)+161
+        Envoy::Grpc::AsyncStreamImpl::onData(Envoy::Buffer::Instance&, bool)+199
+        Envoy::Http::AsyncStreamImpl::encodeData(Envoy::Buffer::Instance&, bool)+354
+        Envoy::Router::UpstreamRequest::decodeData(Envoy::Buffer::Instance&, bool)+230
+        Envoy::Http::ResponseDecoderWrapper::decodeData(Envoy::Buffer::Instance&, bool)+59
+        Envoy::Http::Http2::ConnectionImpl::onFrameReceived(nghttp2_frame const*)+1413
+        Envoy::Http::Http2::ConnectionImpl::Http2Callbacks::Http2Callbacks()::$_22::__invoke(nghttp2_session*, nghttp2_frame const*, void*)+32
+        nghttp2_session_on_data_received+172
+        nghttp2_session_mem_recv+7174
+        Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+1120
+        virtual thunk to Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+21
+        Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)+48
+        Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)+21
+        Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)+303
+        Envoy::Network::ConnectionImpl::onReadReady()+1622
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::InstanceImpl::run()+747
+        Envoy::MainCommonBase::run()+68
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+148
+        main+44
+        __libc_start_main+243
+
+
+########## bind() ##########
+comm:envoy           : bind AF_INET: ip:0.0.0.0          port:15001 fd=31 
+stack: 
+        bind+11
+        Envoy::Network::IoSocketHandleImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+101
+        Envoy::Network::SocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+383
+        Envoy::Network::ListenSocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+77
+        Envoy::Network::ListenSocketImpl::setupSocket(std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+76
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+486
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, google::protobuf::RepeatedPtrField<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+1535
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+908
+        Envoy::Config::GrpcSubscriptionImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+121
+        Envoy::Config::GrpcMuxImpl::onDiscoveryResponse(std::__1::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse, std::__1::default_delete<envoy::service::discovery::v3::DiscoveryResponse> >&&, Envoy::Config::ControlPlaneStats&)+3664
+        Envoy::Grpc::AsyncStreamCallbacks<envoy::service::discovery::v3::DiscoveryResponse>::onReceiveMessageRaw(std::__1::unique_ptr<Envoy::Buffer::Instance, std::__1::default_delete<Envoy::Buffer::Instance> >&&)+161
+        Envoy::Grpc::AsyncStreamImpl::onData(Envoy::Buffer::Instance&, bool)+199
+        Envoy::Http::AsyncStreamImpl::encodeData(Envoy::Buffer::Instance&, bool)+354
+        Envoy::Router::UpstreamRequest::decodeData(Envoy::Buffer::Instance&, bool)+230
+        Envoy::Http::ResponseDecoderWrapper::decodeData(Envoy::Buffer::Instance&, bool)+59
+        Envoy::Http::Http2::ConnectionImpl::onFrameReceived(nghttp2_frame const*)+1413
+        Envoy::Http::Http2::ConnectionImpl::Http2Callbacks::Http2Callbacks()::$_22::__invoke(nghttp2_session*, nghttp2_frame const*, void*)+32
+        nghttp2_session_on_data_received+172
+        nghttp2_session_mem_recv+7174
+        Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+1120
+        virtual thunk to Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+21
+        Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)+48
+        Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)+21
+        Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)+303
+        Envoy::Network::ConnectionImpl::onReadReady()+1622
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::InstanceImpl::run()+747
+        Envoy::MainCommonBase::run()+68
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+148
+        main+44
+        __libc_start_main+243
+
+
+########## setsockopt() ##########
+comm:envoy           : setsockopt: level=1, fd=32, optname=2, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::setPrebindSocketOptions()+50
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+398
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, google::protobuf::RepeatedPtrField<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+1535
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+908
+        Envoy::Config::GrpcSubscriptionImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+121
+        Envoy::Config::GrpcMuxImpl::onDiscoveryResponse(std::__1::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse, std::__1::default_delete<envoy::service::discovery::v3::DiscoveryResponse> >&&, Envoy::Config::ControlPlaneStats&)+3664
+        Envoy::Grpc::AsyncStreamCallbacks<envoy::service::discovery::v3::DiscoveryResponse>::onReceiveMessageRaw(std::__1::unique_ptr<Envoy::Buffer::Instance, std::__1::default_delete<Envoy::Buffer::Instance> >&&)+161
+        Envoy::Grpc::AsyncStreamImpl::onData(Envoy::Buffer::Instance&, bool)+199
+        Envoy::Http::AsyncStreamImpl::encodeData(Envoy::Buffer::Instance&, bool)+354
+        Envoy::Router::UpstreamRequest::decodeData(Envoy::Buffer::Instance&, bool)+230
+        Envoy::Http::ResponseDecoderWrapper::decodeData(Envoy::Buffer::Instance&, bool)+59
+        Envoy::Http::Http2::ConnectionImpl::onFrameReceived(nghttp2_frame const*)+1413
+        Envoy::Http::Http2::ConnectionImpl::Http2Callbacks::Http2Callbacks()::$_22::__invoke(nghttp2_session*, nghttp2_frame const*, void*)+32
+        nghttp2_session_on_data_received+172
+        nghttp2_session_mem_recv+7174
+        Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+1120
+        virtual thunk to Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+21
+        Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)+48
+        Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)+21
+        Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)+303
+        Envoy::Network::ConnectionImpl::onReadReady()+1622
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::InstanceImpl::run()+747
+        Envoy::MainCommonBase::run()+68
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+148
+        main+44
+        __libc_start_main+243
+
+
+########## bind() ##########
+comm:envoy           : bind AF_INET: ip:0.0.0.0          port:15006 fd=32 
+stack: 
+        bind+11
+        Envoy::Network::IoSocketHandleImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+101
+        Envoy::Network::SocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+383
+        Envoy::Network::ListenSocketImpl::bind(std::__1::shared_ptr<Envoy::Network::Address::Instance const>)+77
+        Envoy::Network::ListenSocketImpl::setupSocket(std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+76
+        Envoy::Network::NetworkListenSocket<Envoy::Network::NetworkSocketTrait<(Envoy::Network::Socket::Type)0> >::NetworkListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const> const&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool)+486
+        Envoy::Server::ProdListenerComponentFactory::createListenSocket(std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, Envoy::Server::ListenSocketCreationParams const&)+1211
+        Envoy::Server::ListenSocketFactoryImpl::createListenSocketAndApplyOptions()+114
+        Envoy::Server::ListenSocketFactoryImpl::ListenSocketFactoryImpl(Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+170
+        std::__1::__shared_ptr_emplace<Envoy::Server::ListenSocketFactoryImpl, std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl> >::__shared_ptr_emplace<Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&>(std::__1::allocator<Envoy::Server::ListenSocketFactoryImpl>, Envoy::Server::ListenerComponentFactory&, std::__1::shared_ptr<Envoy::Network::Address::Instance const>&&, Envoy::Network::Socket::Type&, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, bool&&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool&)+80
+        Envoy::Server::ListenerManagerImpl::createListenSocketFactory(envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+133
+        Envoy::Server::ListenerManagerImpl::setNewOrDrainingSocketFactory(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, envoy::config::core::v3::Address const&, Envoy::Server::ListenerImpl&, bool)+783
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListenerInternal(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+3172
+        Envoy::Server::ListenerManagerImpl::addOrUpdateListener(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool)+409
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, google::protobuf::RepeatedPtrField<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+1535
+        Envoy::Server::LdsApiImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+908
+        Envoy::Config::GrpcSubscriptionImpl::onConfigUpdate(std::__1::vector<std::__1::reference_wrapper<Envoy::Config::DecodedResource>, std::__1::allocator<std::__1::reference_wrapper<Envoy::Config::DecodedResource> > > const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&)+121
+        Envoy::Config::GrpcMuxImpl::onDiscoveryResponse(std::__1::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse, std::__1::default_delete<envoy::service::discovery::v3::DiscoveryResponse> >&&, Envoy::Config::ControlPlaneStats&)+3664
+        Envoy::Grpc::AsyncStreamCallbacks<envoy::service::discovery::v3::DiscoveryResponse>::onReceiveMessageRaw(std::__1::unique_ptr<Envoy::Buffer::Instance, std::__1::default_delete<Envoy::Buffer::Instance> >&&)+161
+        Envoy::Grpc::AsyncStreamImpl::onData(Envoy::Buffer::Instance&, bool)+199
+        Envoy::Http::AsyncStreamImpl::encodeData(Envoy::Buffer::Instance&, bool)+354
+        Envoy::Router::UpstreamRequest::decodeData(Envoy::Buffer::Instance&, bool)+230
+        Envoy::Http::ResponseDecoderWrapper::decodeData(Envoy::Buffer::Instance&, bool)+59
+        Envoy::Http::Http2::ConnectionImpl::onFrameReceived(nghttp2_frame const*)+1413
+        Envoy::Http::Http2::ConnectionImpl::Http2Callbacks::Http2Callbacks()::$_22::__invoke(nghttp2_session*, nghttp2_frame const*, void*)+32
+        nghttp2_session_on_data_received+172
+        nghttp2_session_mem_recv+7174
+        Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+1120
+        virtual thunk to Envoy::Http::Http2::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+21
+        Envoy::Http::CodecClient::onData(Envoy::Buffer::Instance&)+48
+        Envoy::Http::CodecClient::CodecReadFilter::onData(Envoy::Buffer::Instance&, bool)+21
+        Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)+303
+        Envoy::Network::ConnectionImpl::onReadReady()+1622
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::InstanceImpl::run()+747
+        Envoy::MainCommonBase::run()+68
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+148
+        main+44
+        __libc_start_main+243
+
+
+########## exit accept4() ##########
+accept4: pid:191421 comm:wrk:worker_1     family:2   peerIP:192.168.122.55   peerPort:43692 fd:41
+stack: 
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+########## setsockopt() ##########
+comm:wrk:worker_1    : setsockopt: level=6, fd=41, optname=1, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::ConnectionImpl::noDelay(bool)+143
+        Envoy::Server::ActiveTcpConnection::ActiveTcpConnection(Envoy::Server::ActiveConnections&, std::__1::unique_ptr<Envoy::Network::Connection, std::__1::default_delete<Envoy::Network::Connection> >&&, Envoy::TimeSource&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >&&)+141
+        Envoy::Server::ActiveTcpListener::newConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >)+650
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)+163
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+856
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+########## exit accept4() ##########
+accept4: pid:191421 comm:wrk:worker_1     family:2   peerIP:192.168.122.55   peerPort:43692 fd:-11
+stack: 
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+########## setsockopt() ##########
+comm:wrk:worker_1    : setsockopt: level=6, fd=42, optname=1, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::ConnectionImpl::noDelay(bool)+143
+        Envoy::Http::CodecClient::CodecClient(Envoy::Http::CodecType, std::__1::unique_ptr<Envoy::Network::ClientConnection, std::__1::default_delete<Envoy::Network::ClientConnection> >&&, std::__1::shared_ptr<Envoy::Upstream::HostDescription const>, Envoy::Event::Dispatcher&)+615
+        Envoy::Http::CodecClientProd::CodecClientProd(Envoy::Http::CodecType, std::__1::unique_ptr<Envoy::Network::ClientConnection, std::__1::default_delete<Envoy::Network::ClientConnection> >&&, std::__1::shared_ptr<Envoy::Upstream::HostDescription const>, Envoy::Event::Dispatcher&, Envoy::Random::RandomGenerator&)+70
+        std::__1::__function::__func<Envoy::Http::Http1::allocateConnPool(Envoy::Event::Dispatcher&, Envoy::Random::RandomGenerator&, std::__1::shared_ptr<Envoy::Upstream::Host const>, Envoy::Upstream::ResourcePriority, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, Envoy::Upstream::ClusterConnectivityState&)::$_1, std::__1::allocator<Envoy::Http::Http1::allocateConnPool(Envoy::Event::Dispatcher&, Envoy::Random::RandomGenerator&, std::__1::shared_ptr<Envoy::Upstream::Host const>, Envoy::Upstream::ResourcePriority, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, Envoy::Upstream::ClusterConnectivityState&)::$_1>, std::__1::unique_ptr<Envoy::Http::CodecClient, std::__1::default_delete<Envoy::Http::CodecClient> > (Envoy::Upstream::Host::CreateConnectionData&, Envoy::Http::HttpConnPoolImplBase*)>::operator()(Envoy::Upstream::Host::CreateConnectionData&, Envoy::Http::HttpConnPoolImplBase*&&)+94
+        Envoy::Http::FixedHttpConnPoolImpl::createCodecClient(Envoy::Upstream::Host::CreateConnectionData&)+35
+        Envoy::Http::ActiveClient::initialize(Envoy::Upstream::Host::CreateConnectionData&, Envoy::Http::HttpConnPoolImplBase&)+113
+        Envoy::Http::ActiveClient::ActiveClient(Envoy::Http::HttpConnPoolImplBase&, unsigned int, unsigned int)+171
+        Envoy::Http::Http1::ActiveClient::ActiveClient(Envoy::Http::HttpConnPoolImplBase&)+69
+        std::__1::__function::__func<Envoy::Http::Http1::allocateConnPool(Envoy::Event::Dispatcher&, Envoy::Random::RandomGenerator&, std::__1::shared_ptr<Envoy::Upstream::Host const>, Envoy::Upstream::ResourcePriority, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, Envoy::Upstream::ClusterConnectivityState&)::$_0, std::__1::allocator<Envoy::Http::Http1::allocateConnPool(Envoy::Event::Dispatcher&, Envoy::Random::RandomGenerator&, std::__1::shared_ptr<Envoy::Upstream::Host const>, Envoy::Upstream::ResourcePriority, std::__1::shared_ptr<std::__1::vector<std::__1::shared_ptr<Envoy::Network::Socket::Option const>, std::__1::allocator<std::__1::shared_ptr<Envoy::Network::Socket::Option const> > > > const&, std::__1::shared_ptr<Envoy::Network::TransportSocketOptions const> const&, Envoy::Upstream::ClusterConnectivityState&)::$_0>, std::__1::unique_ptr<Envoy::ConnectionPool::ActiveClient, std::__1::default_delete<Envoy::ConnectionPool::ActiveClient> > (Envoy::Http::HttpConnPoolImplBase*)>::operator()(Envoy::Http::HttpConnPoolImplBase*&&)+40
+        Envoy::Http::FixedHttpConnPoolImpl::instantiateActiveClient()+35
+        Envoy::ConnectionPool::ConnPoolImplBase::tryCreateNewConnection(float)+1233
+        Envoy::ConnectionPool::ConnPoolImplBase::newStream(Envoy::ConnectionPool::AttachContext&)+2001
+        non-virtual thunk to Envoy::Http::HttpConnPoolImplBase::newStream(Envoy::Http::ResponseDecoder&, Envoy::Http::ConnectionPool::Callbacks&)+47
+        Envoy::Extensions::Upstreams::Http::Http::HttpConnPool::newStream(Envoy::Router::GenericConnectionPoolCallbacks*)+70
+        Envoy::Router::Filter::decodeHeaders(Envoy::Http::RequestHeaderMap&, bool)+14120
+        Envoy::Http::FilterManager::decodeHeaders(Envoy::Http::ActiveStreamDecoderFilter*, Envoy::Http::RequestHeaderMap&, bool)+334
+        Envoy::Http::ConnectionManagerImpl::ActiveStream::decodeHeaders(std::__1::unique_ptr<Envoy::Http::RequestHeaderMap, std::__1::default_delete<Envoy::Http::RequestHeaderMap> >&&, bool)+6139
+        Envoy::Http::Http1::ServerConnectionImpl::onMessageCompleteBase()+279
+        Envoy::Http::Http1::ConnectionImpl::onMessageComplete()+637
+        Envoy::Http::Http1::LegacyHttpParserImpl::Impl::Impl(http_parser_type, void*)::{lambda(http_parser*)#3}::__invoke(http_parser*)+31
+        http_parser_execute+7959
+        Envoy::Http::Http1::LegacyHttpParserImpl::execute(char const*, int)+31
+        Envoy::Http::Http1::ConnectionImpl::dispatchSlice(char const*, unsigned long)+52
+        Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+1151
+        virtual thunk to Envoy::Http::Http1::ConnectionImpl::dispatch(Envoy::Buffer::Instance&)+21
+        Envoy::Http::ConnectionManagerImpl::onData(Envoy::Buffer::Instance&, bool)+76
+        Envoy::Network::FilterManagerImpl::onContinueReading(Envoy::Network::FilterManagerImpl::ActiveReadFilter*, Envoy::Network::ReadBufferSource&)+303
+        Envoy::Network::ConnectionImpl::onReadReady()+1622
+        Envoy::Network::ConnectionImpl::onFileEvent(unsigned int)+879
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::WorkerImpl::threadRoutine(Envoy::Server::GuardDog&, std::__1::function<void ()> const&)+621
+        Envoy::Thread::ThreadImplPosix::ThreadImplPosix(std::__1::function<void ()>, absl::optional<Envoy::Thread::Options> const&)::{lambda(void*)#1}::__invoke(void*)+19
+        start_thread+217
+
+
+########## exit accept4() ##########
+accept4: pid:191421 comm:envoy            family:2   peerIP:127.0.0.1        peerPort:52438 fd:43
+stack: 
+        accept4+96
+        Envoy::Network::IoSocketHandleImpl::accept(sockaddr*, unsigned int*)+82
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+216
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::InstanceImpl::run()+747
+        Envoy::MainCommonBase::run()+68
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+148
+        main+44
+        __libc_start_main+243
+
+
+########## setsockopt() ##########
+comm:envoy           : setsockopt: level=6, fd=43, optname=1, optval=1, optlen=4. stack: 
+        setsockopt+14
+        Envoy::Network::IoSocketHandleImpl::setOption(int, int, void const*, unsigned int)+90
+        Envoy::Network::ConnectionImpl::noDelay(bool)+143
+        Envoy::Server::ActiveTcpConnection::ActiveTcpConnection(Envoy::Server::ActiveConnections&, std::__1::unique_ptr<Envoy::Network::Connection, std::__1::default_delete<Envoy::Network::Connection> >&&, Envoy::TimeSource&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >&&)+141
+        Envoy::Server::ActiveTcpListener::newConnection(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, std::__1::unique_ptr<Envoy::StreamInfo::StreamInfo, std::__1::default_delete<Envoy::StreamInfo::StreamInfo> >)+650
+        Envoy::Server::ActiveTcpSocket::newConnection()+377
+        Envoy::Server::ActiveTcpSocket::continueFilterChain(bool)+107
+        Envoy::Server::ActiveTcpListener::onAcceptWorker(std::__1::unique_ptr<Envoy::Network::ConnectionSocket, std::__1::default_delete<Envoy::Network::ConnectionSocket> >&&, bool, bool)+163
+        Envoy::Network::TcpListenerImpl::onSocketEvent(short)+856
+        std::__1::__function::__func<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5, std::__1::allocator<Envoy::Event::DispatcherImpl::createFileEvent(int, std::__1::function<void (unsigned int)>, Envoy::Event::FileTriggerType, unsigned int)::$_5>, void (unsigned int)>::operator()(unsigned int&&)+65
+        Envoy::Event::FileEventImpl::assignEvents(unsigned int, event_base*)::$_1::__invoke(int, short, void*)+92
+        event_process_active_single_queue+1416
+        event_base_loop+1953
+        Envoy::Server::InstanceImpl::run()+747
+        Envoy::MainCommonBase::run()+68
+        Envoy::MainCommon::main(int, char**, std::__1::function<void (Envoy::Server::Instance&)>)+148
+        main+44
+        __libc_start_main+243
+
+
+########## exit accept4() ##########
+accept4: pid:191421 comm:envoy            family:2   peerIP:127.0.0.1        peerPort:52438 fd:-11

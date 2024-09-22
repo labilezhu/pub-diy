@@ -1,0 +1,119 @@
+
+
+##### ksoftirqd 内核线程
+@kstack[10, 10, ksoftirqd/0, 
+    ip_rcv+1
+    __netif_receive_skb+24
+    process_backlog+169
+    net_rx_action+322
+    __softirqentry_text_start+209
+    run_ksoftirqd+43
+    smpboot_thread_fn+208
+    kthread+260
+    ret_from_fork+53
+]: 6
+
+@kstack[18, 18, ksoftirqd/1, 
+    ip_rcv+1
+    __netif_receive_skb+24
+    process_backlog+169
+    net_rx_action+322
+    __softirqentry_text_start+209
+    run_ksoftirqd+43
+    smpboot_thread_fn+208
+    kthread+260
+    ret_from_fork+53
+]: 43
+
+##### Hard IRQ 退出后触发
+
+@kstack[0, 0, swapper/0, 
+    ip_rcv+1
+    __netif_receive_skb+24
+    process_backlog+169
+    net_rx_action+322
+    __softirqentry_text_start+209
+    irq_exit+174
+    do_IRQ+90
+    ret_from_intr+0
+    native_safe_halt+14
+    arch_cpu_idle+21
+    default_idle_call+35
+    do_idle+507
+    cpu_startup_entry+32
+    rest_init+174
+    arch_call_rest_init+14
+    start_kernel+1353
+    x86_64_start_reservations+36
+    x86_64_start_kernel+117
+    secondary_startup_64+164
+]: 4
+
+
+##### SYSCALL 完成主要工作后，调用 __local_bh_enable_ip 触发
+
+@kstack[1580, 1580, node, 
+    ip_rcv+1
+    __netif_receive_skb+24
+    process_backlog+169
+    net_rx_action+322
+    __softirqentry_text_start+209
+    do_softirq_own_stack+42
+    do_softirq.part.0+70
+    __local_bh_enable_ip+80 <==============
+    ip_finish_output2+402 
+    __ip_finish_output+243
+    ip_finish_output+45
+    ip_output+117
+    ip_local_out+61
+    __ip_queue_xmit+365
+    ip_queue_xmit+16
+    __tcp_transmit_skb+1333
+    tcp_write_xmit+966
+    __tcp_push_pending_frames+55
+    tcp_push+253
+    tcp_sendmsg_locked+3183
+    tcp_sendmsg+45
+    inet_sendmsg+67
+    sock_sendmsg+94
+    sock_write_iter+147
+    new_sync_write+293
+    __vfs_write+41
+    vfs_write+185
+    ksys_write+103
+    __x64_sys_write+26
+    do_syscall_64+87
+    entry_SYSCALL_64_after_hwframe+68
+]: 16
+@kstack[1521, 1521, sshd, 
+    ip_rcv+1
+    __netif_receive_skb+24
+    process_backlog+169
+    net_rx_action+322
+    __softirqentry_text_start+209
+    do_softirq_own_stack+42
+    do_softirq.part.0+70
+    __local_bh_enable_ip+80 <==============
+    ip_finish_output2+402  
+    __ip_finish_output+243
+    ip_finish_output+45
+    ip_local_out+61
+    __ip_queue_xmit+365
+    ip_queue_xmit+16
+    __tcp_transmit_skb+1333
+    tcp_write_xmit+966
+    __tcp_push_pending_frames+55
+    tcp_push+253
+    tcp_sendmsg_locked+3183
+    tcp_sendmsg+45
+    inet_sendmsg+67
+    sock_sendmsg+94
+    sock_write_iter+147
+    new_sync_write+293
+    __vfs_write+41
+    vfs_write+185
+    ksys_write+103
+    __x64_sys_write+26
+    do_syscall_64+87
+    entry_SYSCALL_64_after_hwframe+68
+]: 16

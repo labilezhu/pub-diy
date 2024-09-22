@@ -1,0 +1,146 @@
+#!/usr/local/bin/bpftrace
+#include <asm-generic/errno.h>
+#include <linux/in.h>
+#include <net/tcp_states.h>
+#include <net/sock.h>
+#include <net/inet_sock.h>
+#include <linux/socket.h>
+
+BEGIN
+{
+    printf("Tracing IP connect() latency with ustacks. Ctrl-C to end.\n");
+
+    @tcp_states[1] = "ESTABLISHED";
+    @tcp_states[2] = "SYN_SENT";
+    @tcp_states[3] = "SYN_RECV";
+    @tcp_states[4] = "FIN_WAIT1";
+    @tcp_states[5] = "FIN_WAIT2";
+    @tcp_states[6] = "TIME_WAIT";
+    @tcp_states[7] = "CLOSE";
+    @tcp_states[8] = "CLOSE_WAIT";
+    @tcp_states[9] = "LAST_ACK";
+    @tcp_states[10] = "LISTEN";
+    @tcp_states[11] = "CLOSING";
+    @tcp_states[12] = "NEW_SYN_RECV";    
+}
+
+// tracepoint:syscalls:sys_enter_connect 
+// /args->uservaddr->sa_family == AF_INET ||
+//     args->uservaddr->sa_family == AF_INET6/
+// {
+//     @conn_start[tid] = nsecs;
+//     @conn_stack[tid] = ustack();
+// }
+
+// tracepoint:syscalls:sys_exit_connect 
+// /@conn_start[tid] && args->ret != -EINPROGRESS/
+// {
+//     $dur_us = (nsecs - @conn_start[tid])/1000;
+//     @us[@conn_stack[tid], comm] = hist($dur_us);
+//     delete (@conn_start[tid]);
+//     delete (@conn_stack[tid]);
+// }
+
+// tracepoint:syscalls:sys_exit_poll*,
+// tracepoint:syscalls:sys_exit_epoll*,
+// tracepoint:syscalls:sys_exit_select*,
+// tracepoint:syscalls:sys_exit_pselect* 
+// /@conn_start[tid] && args->ret > 0/
+// {
+//     $dur_us = (nsecs - @conn_start[tid])/1000;
+//     @us[@conn_stack[tid], comm] = hist($dur_us);
+//     delete (@conn_start[tid]);
+//     delete (@conn_stack[tid]);
+// }
+
+kprobe:tcp_connect
+// /@conn_start[tid]/
+{
+    $sk = (struct sock *)arg0;
+    $inet = (struct inet_sock *)arg0;
+
+    $dport = $sk->__sk_common.skc_dport;
+    $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+
+    $sport = $inet->inet_sport;
+    $sport = ($sport >> 8) | (($sport << 8) & 0x00FF00);
+
+    printf("tcp_connect: %-6d %-16s: %-5d <-> %-5d\n", 
+        pid, comm,
+        $sport, 
+        $dport);
+
+    // printf("tcp_v4_connect: %-15s:%-5d %-15s:%-5d\n", 
+    //     ntop($sk->sk_family, $inet->inet_saddr), 
+    //     $inet->inet_sport,
+    //     "1"/*ntop($sk->family, $inet->inet_daddr)*/, 
+    //     1/*$inet->inet_dport*/);
+
+}
+
+tracepoint:sock:inet_sock_set_state
+/args->oldstate == TCP_CLOSE && args->newstate == TCP_SYN_SENT/
+{
+    time("%H:%M:%S ");
+    //args->sport
+    printf("to TCP_SYN_SENT: %-6d %-16s %-3d ", pid, comm, args->family == AF_INET ? 4 : 6);
+    printf("%-15s:%-5d %-15s:%-5d\n", ntop(args->family, args->saddr), args->sport,
+           ntop(args->family, args->daddr), args->dport);
+    printf("kstack: %s\n", kstack);
+}
+
+
+tracepoint:sock:inet_sock_set_state
+/args->oldstate == TCP_SYN_SENT && args->newstate == TCP_CLOSE/
+{
+    time("%H:%M:%S ");
+    //args->sport
+    printf("TCP_SYN_SENT to CLOSE: %-6d %-16s %-3d ", pid, comm, args->family == AF_INET ? 4 : 6);
+    printf("%-15s:%-5d %-15s:%-5d\n", ntop(args->family, args->saddr), args->sport,
+           ntop(args->family, args->daddr), args->dport);
+    printf("kstack: %s\n", kstack);
+}
+
+kprobe:tcp_retransmit_skb
+{
+    $sk = (struct sock *)arg0;
+    $inet_family = $sk->__sk_common.skc_family;
+    if ($inet_family == AF_INET || $inet_family == AF_INET6)
+    {
+        $daddr = ntop(0);
+        $saddr = ntop(0);
+        if ($inet_family == AF_INET)
+        {
+            $daddr = ntop($sk->__sk_common.skc_daddr);
+            $saddr = ntop($sk->__sk_common.skc_rcv_saddr);
+        }
+        else
+        {
+            $daddr = ntop(
+                $sk->__sk_common.skc_v6_daddr.in6_u.u6_addr8);
+            $saddr = ntop(
+                $sk->__sk_common.skc_v6_rcv_saddr.in6_u.u6_addr8);
+        }
+        $lport = $sk->__sk_common.skc_num;
+        $dport = $sk->__sk_common.skc_dport;
+        // Destination port is big endian, it must be flipped
+        $dport = ($dport >> 8) | (($dport << 8) & 0x00FF00);
+        $state = $sk->__sk_common.skc_state;
+        $statestr = @tcp_states[$state];
+        time("%H:%M:%S ");
+        printf("%-8d %14s:%-6d %14s:%-6d %6s\n", pid, $saddr, $lport,
+               $daddr, $dport, $statestr);
+    }
+}
+
+
+// kprobe:ep_poll_callback
+// {
+// }
+
+END
+{
+    // clear(@conn_start);
+    // clear(@conn_stack);
+    clear(@tcp_states);
+}

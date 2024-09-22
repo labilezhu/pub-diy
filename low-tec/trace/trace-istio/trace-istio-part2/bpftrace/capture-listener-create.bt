@@ -1,0 +1,316 @@
+#!/usr/local/bin/bpftrace
+
+
+/**
+
+export RUNNING_ENVOY_PID=`pgrep envoy -o`
+
+export ENVOY_BINARY_HOST_PATH=\
+`sudo cat /proc/$RUNNING_ENVOY_PID/mountinfo | grep '/ / ' | tr : '\n' | tr , '\n' | sed 's/^[a-zA-Z0-9]*=//g' | egrep -v '\s+' | grep / |  xargs -I '{}' sudo find '{}' -name "envoy" -type f`
+
+echo "ENVOY_BINARY_HOST_PATH=$ENVOY_BINARY_HOST_PATH"
+
+sudo stat $ENVOY_BINARY_HOST_PATH
+sudo grep envoy /proc/$RUNNING_ENVOY_PID/maps | head -1 | awk -F ' ' '{print $5}'
+
+export SCRIPT_HOME=`pwd`
+cat $SCRIPT_HOME/capture-listener-create.bt | 
+    sed "s+ENVOY_BINARY+$ENVOY_BINARY_HOST_PATH+g" > $SCRIPT_HOME/gen.bt; 
+export bpftrace_image=cndt-bcc-ub
+docker run --rm --init --log-driver none --privileged --name bpftrace -h bpftrace \
+    --pid host \
+    --net host \
+    -e SCRIPT_HOME=$SCRIPT_HOME \
+    -v /etc/localtime:/etc/localtime:ro \
+    -v /sys:/sys:rw \
+    -v /usr/src:/usr/src:rw \
+    -v /lib/modules:/lib/modules:rw \
+    -v /var/run/docker.sock:/var/run/docker.sock:rw \
+    `#bind the executeable file as the same path in container:` \
+    -v $ENVOY_BINARY_HOST_PATH:$ENVOY_BINARY_HOST_PATH:ro \
+    `#bind bpftrace script` \
+    -v $SCRIPT_HOME:$SCRIPT_HOME:rw \
+    $bpftrace_image \
+    bpftrace $SCRIPT_HOME/gen.bt
+
+## restart istio-proxy container
+
+export PODID=`sudo crictl pods --name forti  | egrep '\bReady' | awk -F ' ' '{print $1}'`
+export CONTAINERID=`sudo crictl ps | grep $PODID | grep istio-proxy  | egrep '\bRunning' | awk -F ' ' '{print $1}'`
+sudo crictl exec $CONTAINERID bash -c 'kill `pgrep envoy`'
+
+
+
+*/
+
+
+/**
+➜  ~ readelf -s --wide  $ENVOY_BINARY | egrep '\bmain\b'       
+  3485: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS main.cc
+108463: 000000000162da80   152 FUNC    GLOBAL DEFAULT   14 main
+
+
+readelf -s --wide  $ENVOY_BINARY | egrep 'TcpListenerImpl' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'TcpListenerImpl::TcpListenerImpl'
+     9  Envoy::Network::TcpListenerImpl::TcpListenerImpl(Envoy::Event::DispatcherImpl&, Envoy::Random::RandomGenerator&, std::__1::shared_ptr<Envoy::Network::Socket>, Envoy::Network::TcpListenerCallbacks&, bool, unsigned int)
+readelf -s --wide  $ENVOY_BINARY | egrep 'TcpListenerImpl' | grep FUNC | nl | egrep '^\s+9\s+'
+     9  241306: 000000000333d050   332 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy7Network15TcpListenerImplC1ERNS_5Event14DispatcherImplERNS_6Random15RandomGeneratorENSt3__110shared_ptrINS0_6SocketEEERNS0_20TcpListenerCallbacksEbj
+
+readelf -s --wide  $ENVOY_BINARY | egrep 'TcpListenerImpl' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |grep 'TcpListenerImpl::enable'
+    14  Envoy::Network::TcpListenerImpl::enable()
+readelf -s --wide  $ENVOY_BINARY | egrep 'TcpListenerImpl' | grep FUNC | nl | egrep '^\s+14\s+'
+    14  241861: 000000000333d1a0   293 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy7Network15TcpListenerImpl6enableEv
+
+sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | awk 'NF>1{print $NF}' | c++filt | nl |egrep '^\s+[0-9]+\s+Envoy::Server::ListenerImpl::ListenerImpl'
+   255  Envoy::Server::ListenerImpl::ListenerImpl(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
+   256  Envoy::Server::ListenerImpl::ListenerImpl(Envoy::Server::ListenerImpl&, envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
+   257  Envoy::Server::ListenerImpl::ListenerImpl(envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
+   258  Envoy::Server::ListenerImpl::ListenerImpl(Envoy::Server::ListenerImpl&, envoy::config::listener::v3::Listener const&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, Envoy::Server::ListenerManagerImpl&, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char> > const&, bool, bool, unsigned long, unsigned int)
+
+sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | nl | egrep '^\s+255\s+'
+   255  227210: 000000000302cb20  4272 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server12ListenerImplC1ERKN5envoy6config8listener2v38ListenerERKNSt3__112basic_stringIcNS9_11char_traitsIcEENS9_9allocatorIcEEEERNS0_19ListenerManagerImplESH_bbmj
+sudo readelf -s --wide  $ENVOY_BINARY_HOST_PATH | egrep 'ListenerImpl' | grep FUNC | nl | egrep '^\s+257\s+'
+   257  227212: 000000000302cb20  4272 FUNC    GLOBAL DEFAULT   14 _ZN5Envoy6Server12ListenerImplC2ERKN5envoy6config8listener2v38ListenerERKNSt3__112basic_stringIcNS9_11char_traitsIcEENS9_9allocatorIcEEEERNS0_19ListenerManagerImplESH_bbmj
+
+
+
+
+    
+ */
+
+struct virtualobj {
+    long long unsigned int vtableAnchorAddr;
+    void* other;
+};
+
+struct typeinfo {
+  void* helper;
+  char* typename;
+  struct typeinfo* parentTypeInfo; 
+};
+
+
+struct vtable {
+  long long int parent_offset;
+  struct typeinfo* typeinfo;
+  // void* thunks[nfuncs];
+  void* anchor; // aka thunks[0], this is where the vtbl* in the class points to
+};
+
+struct compressed_ptr_pair_elem {
+    void* __value_;
+};
+
+struct share_ptr {
+    void* __ptr_;
+    char pad[8];
+};
+
+struct unique_ptr {
+    struct compressed_ptr_pair_elem  __ptr_;
+};
+
+
+
+struct ConnectionSocketImpl {
+    void* a;
+};
+
+
+/*
+(gdb) p ((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)
+$87 = (Envoy::Network::AcceptedSocketImpl *) 0x55d15ca52000
+(gdb) p &(((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)->address_provider_)
+$89 = (const std::__1::shared_ptr<Envoy::Network::SocketAddressSetterImpl> *) 0x55d15ca52010
+(gdb) p/x 0x55d15ca52010-0x55d15ca52000
+$90 = 0x10
+
+pSocketAddressSetterImpl
+*/
+struct AcceptedSocketImpl {
+
+// struct ConnectionSocketImpl {
+    // struct SocketImpl {
+        char pad[0x10];
+        struct share_ptr address_provider_;//shared_ptr_SocketAddressSetterImpl
+    // }
+// };
+
+};
+
+/*
+(gdb) p &($pSocketAddressSetterImpl->connection_id_)
+$110 = (absl::optional<unsigned long> *) 0x55d15ca520f0
+(gdb) p &($pSocketAddressSetterImpl->connection_id_.engaged_)
+$111 = (bool *) 0x55d15ca520f0
+(gdb) p &($pSocketAddressSetterImpl->connection_id_.data_)
+$112 = (unsigned long *) 0x55d15ca520f8
+*/
+struct absl_optional_uint64_t {
+    bool engaged_;
+    char pad[7];
+    unsigned long data_;
+};
+
+
+/*
+set $pSocketAddressSetterImpl = ((Envoy::Network::AcceptedSocketImpl*)socket.__ptr_.__value_)->address_provider_.__ptr_
+p $pSocketAddressSetterImpl
+$97 = (std::__1::shared_ptr<Envoy::Network::SocketAddressSetterImpl>::element_type *) 0x55d15ca52098
+
+p &($pSocketAddressSetterImpl->remote_address_)
+$98 = (Envoy::Network::Address::InstanceConstSharedPtr *) 0x55d15ca520b8
+
+p/x 0x55d15ca520b8-0x55d15ca52098
+$103 = 0x20
+
+p/x (void*)(&($pSocketAddressSetterImpl->local_address_)) - (void*)$pSocketAddressSetterImpl
+$105 = 0x20
+p/x (void*)(&($pSocketAddressSetterImpl->local_address_restored_)) - (void*)$pSocketAddressSetterImpl
+p/x (void*)(&($pSocketAddressSetterImpl->remote_address_)) - (void*)$pSocketAddressSetterImpl
+p/x (void*)(&($pSocketAddressSetterImpl->direct_remote_address_)) - (void*)$pSocketAddressSetterImpl
+
+
+(gdb) ptype \o Envoy::Network::SocketAddressSetterImpl
+\* offset    |  size *\  type = class Envoy::Network::SocketAddressSetterImpl : public Envoy::Network::SocketAddressSetter {
+                         private:
+\*    8      |    16 *\    Envoy::Network::Address::InstanceConstSharedPtr local_address_;
+\*   24      |     1 *\    bool local_address_restored_;
+\* XXX  7-byte hole *\
+\*   32      |    16 *\    Envoy::Network::Address::InstanceConstSharedPtr remote_address_;
+\*   48      |    16 *\    Envoy::Network::Address::InstanceConstSharedPtr direct_remote_address_;
+\*   64      |    24 *\    std::__1::string server_name_;
+\*   88      |    16 *\    class absl::optional<unsigned long> [with T = unsigned long] : private absl::optional_internal::optional_data<T, true>
+        , private absl::optional_internal::optional_ctor_base<absl::optional_internal::copy_traits::copyable>
+        , private absl::optional_internal::optional_assign_base<absl::optional_internal::copy_traits::copyable> {
+
+                               \* total size (bytes):   16 *\
+                           } connection_id_;
+
+                           \* total size (bytes):  104 *\
+                         }
+
+p $pSocketAddressSetterImpl->connection_id_
+
+*/
+struct SocketAddressSetterImpl {
+    char pad1[8];
+    struct share_ptr local_address_;//std::shared_ptr<const Instance> local_address_;
+    bool local_address_restored_;
+    char pad2[7];
+    struct share_ptr remote_address_;//std::shared_ptr<const Instance> remote_address_;
+    struct share_ptr direct_remote_address_;//std::shared_ptr<const Instance> direct_remote_address_;
+    char pad3[88-48-16];
+    struct absl_optional_uint64_t connection_id_;
+};
+
+/*
+Envoy::Network::Address::Ipv4Instance
+
+(gdb) ptype \o Envoy::Network::Address::Ipv4Instance
+\* offset    |  size *\  type = class Envoy::Network::Address::Ipv4Instance : public Envoy::Network::Address::InstanceBase {
+                         private:
+\*   48      |    56 *\    struct Envoy::Network::Address::Ipv4Instance::IpHelper : public Envoy::Network::Address::Ip {
+\*   56      |    24 *\        struct Envoy::Network::Address::Ipv4Instance::Ipv4Helper : public Envoy::Network::Address::Ipv4 {
+\*   64      |    16 *\            struct sockaddr_in {
+\*   64      |     2 *\                sa_family_t sin_family;
+\*   66      |     2 *\                in_port_t sin_port;
+\*   68      |     4 *\                struct in_addr {
+\*   68      |     4 *\                    in_addr_t s_addr;
+
+                                           \* total size (bytes):    4 *\
+                                       } sin_addr;
+\*   72      |     8 *\                unsigned char sin_zero[8];
+
+                                       \* total size (bytes):   16 *\
+                                   } address_;
+
+                                   \* total size (bytes):   24 *\
+                               } ipv4_;
+\*   80      |    24 *\        std::__1::string friendly_address_;
+
+                               \* total size (bytes):   56 *\
+                           } ip_;
+
+                           \* total size (bytes):  104 *\
+                         }
+*/
+struct Ipv4Instance {
+    char pad1[66];
+    unsigned short sin_port; //size = 2 bytes
+    // char pad2[68-2-66];
+    int s_addr;
+};
+
+
+/*
+(gdb) ptype \o Envoy::Extensions::ListenerFilters::TlsInspector::Filter
+\* offset    |  size *\  type = class Envoy::Extensions::ListenerFilters::TlsInspector::Filter : public Envoy::Network::ListenerFilter, private Envoy::Logger::Loggable<Envoy::Logger::Id::filter> {
+                         private:
+\*    8      |    16 *\    Envoy::Extensions::ListenerFilters::TlsInspector::ConfigSharedPtr config_;
+\*   24      |     8 *\    Envoy::Network::ListenerFilterCallbacks *cb_;
+\*   32      |     8 *\    bssl::UniquePtr<SSL> ssl_;
+\*   40      |     8 *\    uint64_t read_;
+*/
+struct TlsInspector_Filter {
+    char pad1[24];
+    struct virtualobj* cb_; //Envoy::Network::ListenerFilterCallbacks *
+};
+
+
+/*
+(gdb) ptype \o Envoy::Server::ActiveTcpSocket
+\* offset    |  size *\  type = struct Envoy::Server::ActiveTcpSocket : public Envoy::Network::ListenerFilterManager
+    , public Envoy::Network::ListenerFilterCallbacks, public Envoy::LinkedObject<Envoy::Server::ActiveTcpSocket>, public Envoy::Event::DeferredDeletable
+        , public Envoy::Logger::Loggable<Envoy::Logger::Id::conn_handler> {
+\*   40      |     8 *\    Envoy::Server::ActiveTcpListener &listener_;
+\*   48      |     8 *\    Envoy::Network::ConnectionSocketPtr socket_;
+*/
+struct ActiveTcpSocket {
+    char pad[48];
+    struct virtualobj* pConnectionSocket_socket_;
+};
+
+
+BEGIN
+{
+}
+
+
+//main
+uprobe:ENVOY_BINARY:main
+{ 
+    @pids[pid]=pid;
+    printf("\n******tracing envoy pid: %d\n", pid);
+}
+
+//TcpListenerImpl::enable()
+// uprobe:ENVOY_BINARY:*TcpListenerImpl*
+// {
+//     printf("\n--elapsed=%d,pid=%d,tid=%d,comm=%s:%s\n", 
+//         elapsed, pid, tid, comm, func);
+// }
+
+
+//TcpListenerImpl::enable()
+uprobe:ENVOY_BINARY:*TcpListenerImpl*enable*
+/@pids[pid]/
+{
+    printf("\n--elapsed=%d,pid=%d,tid=%d,comm=%s:TcpListenerImpl::enable()\n", 
+        elapsed, pid, tid, comm);
+}
+
+//TcpListenerImpl::enable()
+uprobe:ENVOY_BINARY:*TcpListenerImpl*
+/@pids[pid]/
+{
+    printf("\n--elapsed=%d,pid=%d,tid=%d,comm=%s:TcpListenerImpl::%s()\n", 
+        elapsed, pid, tid, comm, func);
+}
+
+
+END
+{
+    clear(@pids);
+}
+
+
