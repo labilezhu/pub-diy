@@ -39,6 +39,10 @@ mem 0x00007fffdca40180/2
 0x00007fffdca40180: 0x0000000000000009 = binary:age:0001 0 01
 
 
+sudo gdb --init-eval-command="handle SIGSEGV noprint nostop" --pid $(cat /tmp/jvm-insider.pid)
+
+p ((oopDesc*)0x00007fffdca40180)->_mark._value
+
  */
 public class JOLSample_22_Promotion {
 

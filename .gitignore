@@ -32,3 +32,5 @@
 *.app
 
 *.class
+
+hs_err_pid*.log
