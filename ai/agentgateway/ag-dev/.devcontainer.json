@@ -1,0 +1,6 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/rust:latest",
+    "mounts": [
+        "source=/home/your_home/pub-diy,target=/workspaces/agentgateway/diy-log,type=bind,consistency=cached"
+    ]
+}

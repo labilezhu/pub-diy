@@ -1,0 +1,95 @@
+config:  
+  logging:
+    level: debug
+    fields:
+      add:
+        test_mark: '"test-mark"'
+        span.name: '"openai.chat"'
+        # openinference.span.kind: '"LLM"'
+        llm.system: 'llm.provider'
+        llm.params.temperature: 'llm.params.temperature'
+        # By default, prompt and completions are not sent; enable them.
+        request.headers: 'request.headers'
+        request.body: 'request.body'
+        request.response.body: 'response.body'
+
+        llm.completion: 'llm.completion'
+        llm.input_messages: 'flattenRecursive(llm.prompt.map(c, {"message": c}))'
+        gen_ai.prompt: 'flattenRecursive(llm.prompt)'
+        llm.output_messages: 'flattenRecursive(llm.completion.map(c, {"role":"assistant", "content": c}))'
+        mark.zhu: '"mark zhu is here"'    
+  adminAddr: "0.0.0.0:15000"  # Try specifying the full socket address
+
+  tracing:
+    otlpEndpoint: http://tracing:4317
+    # otlpProtocol: http
+    randomSampling: true
+    clientSampling: true
+    fields:
+      add:
+        test_mark: '"test-mark"'
+        span.name: '"openai.chat"'
+        # openinference.span.kind: '"LLM"'
+        llm.system: 'llm.provider'
+        llm.params.temperature: 'llm.params.temperature'
+        # By default, prompt and completions are not sent; enable them.
+        request.headers: 'request.headers'
+        request.body: 'request.body'
+        request.response.body: 'response.body'
+
+        llm.completion: 'llm.completion'
+        llm.input_messages: 'flattenRecursive(llm.prompt.map(c, {"message": c}))'
+        gen_ai.prompt: 'flattenRecursive(llm.prompt)'
+        llm.output_messages: 'flattenRecursive(llm.completion.map(c, {"role":"assistant", "content": c}))'
+        mark.zhu: '"mark zhu is here"'
+binds:
+- port: 3100
+  listeners:
+  - routes:
+    - policies:
+        urlRewrite:
+          authority: #also known as “hostname”
+            full: dashscope.aliyuncs.com
+          # path:
+          #   full: "/compatible-mode/v1"
+        requestHeaderModifier:
+          set:
+            Host: "dashscope.aliyuncs.com" #force set header because "/compatible-mode/v1/models: passthrough" auto set header to 'api.openai.com' by default
+        backendTLS: {}
+        backendAuth:
+          key: "sk-abc"
+
+      backends:
+      - ai:
+          name: qwen-plus
+          hostOverride: dashscope.aliyuncs.com:443
+          provider:
+            openAI: 
+              model: qwen-plus
+          policies:
+            ai:
+              routes:
+                /compatible-mode/v1/chat/completions: completions
+                /compatible-mode/v1/models: passthrough
+                "*": passthrough
+
+- port: 3101
+  listeners:
+  - routes:
+    - policies:
+        cors:
+          allowOrigins:
+            - "*"
+          allowHeaders:
+            - mcp-protocol-version
+            - content-type
+            - cache-control
+        requestHeaderModifier:
+          add:
+            Authorization: "Bearer abc"            
+      backends:
+      - mcp:
+          targets:
+          - name: home-assistant
+            mcp:
+              host: http://192.168.16.68:8123/api/mcp           
